@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 type Token = {
   id: string;
@@ -20,45 +20,62 @@ type BattleMapProps = {
 
 export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: BattleMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Estado local para saber quem está sendo arrastado e onde ele está AGORA (sem esperar o servidor)
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [tempPosition, setTempPosition] = useState<{x: number, y: number} | null>(null);
 
-  const handleMouseDown = (id: string, e: React.MouseEvent) => {
+  // Limpa o estado se soltar o mouse fora da div
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (draggingId) finalizarArrasto();
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [draggingId, tempPosition]);
+
+  const iniciarArrasto = (id: string, e: React.MouseEvent, currentX: number, currentY: number) => {
     if (!readonly) {
         e.stopPropagation();
         setDraggingId(id);
+        setTempPosition({ x: currentX, y: currentY });
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingId || !mapRef.current || !onMoveToken) return;
+  const moverArrasto = (e: React.MouseEvent) => {
+    if (!draggingId || !mapRef.current) return;
 
     const rect = mapRef.current.getBoundingClientRect();
-    // Calcula % relativo ao tamanho da imagem na tela
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-    const safeX = Math.max(0, Math.min(100, x));
-    const safeY = Math.max(0, Math.min(100, y));
-
-    const token = tokens.find(t => t.id === draggingId);
-    if (token) {
-        onMoveToken(token.id, token.tipo, safeX, safeY);
-    }
+    // Atualiza APENAS o visual localmente (super fluido)
+    setTempPosition({ 
+        x: Math.max(0, Math.min(100, x)), 
+        y: Math.max(0, Math.min(100, y)) 
+    });
   };
 
-  const handleMouseUp = () => {
+  const finalizarArrasto = () => {
+    if (draggingId && tempPosition && onMoveToken) {
+        // Busca os dados originais para saber o tipo
+        const tokenOriginal = tokens.find(t => t.id === draggingId);
+        if (tokenOriginal) {
+            // SÓ AGORA envia para o servidor
+            onMoveToken(draggingId, tokenOriginal.tipo, tempPosition.x, tempPosition.y);
+        }
+    }
     setDraggingId(null);
+    setTempPosition(null);
   };
 
   return (
     <div 
       className="relative w-full h-full bg-gray-950 overflow-hidden select-none"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onMouseMove={moverArrasto}
       ref={mapRef}
     >
-      {/* MAPA (IMAGEM) */}
+      {/* MAPA */}
       {mapaUrl ? (
           <img src={mapaUrl} className="w-full h-full object-contain pointer-events-none" alt="Mapa" />
       ) : (
@@ -68,36 +85,46 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
       )}
 
       {/* TOKENS */}
-      {tokens.map((t) => (
-        <div
-          key={t.id}
-          onMouseDown={(e) => handleMouseDown(t.id, e)}
-          className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-lg flex items-center justify-center transition-transform z-10 
-            ${readonly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing active:scale-110 active:z-50'}
-            ${t.tipo === 'AMEACA' ? 'border-red-500 bg-red-900' : 'border-blue-500 bg-blue-900'}
-          `}
-          style={{
-            left: `${t.x}%`,
-            top: `${t.y}%`,
-            width: '40px', // Tamanho fixo para simplificar, ou use % para escalar
-            height: '40px',
-          }}
-          title={t.nome}
-        >
-          {t.imagemUrl ? (
-              <img src={t.imagemUrl} className="w-full h-full object-cover rounded-full pointer-events-none" />
-          ) : (
-              <span className="text-white font-bold text-[10px] pointer-events-none select-none">
-                  {t.nome.substring(0, 2).toUpperCase()}
-              </span>
-          )}
-          
-          {/* Nome flutuante no hover */}
-          <div className="absolute -bottom-6 bg-black/80 text-white text-[8px] px-1 rounded opacity-0 hover:opacity-100 whitespace-nowrap pointer-events-none">
-              {t.nome}
-          </div>
-        </div>
-      ))}
+      {tokens.map((t) => {
+        // Se este token está sendo arrastado, usa a posição TEMPORÁRIA. Se não, usa a do BANCO.
+        const isDragging = draggingId === t.id;
+        const posX = isDragging && tempPosition ? tempPosition.x : t.x;
+        const posY = isDragging && tempPosition ? tempPosition.y : t.y;
+
+        return (
+            <div
+            key={t.id}
+            onMouseDown={(e) => iniciarArrasto(t.id, e, t.x, t.y)}
+            className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-lg flex items-center justify-center transition-transform z-10 
+                ${readonly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}
+                ${t.tipo === 'AMEACA' ? 'border-red-500 bg-red-900' : 'border-blue-500 bg-blue-900'}
+                ${isDragging ? 'scale-125 z-50 shadow-xl ring-2 ring-white' : ''}
+            `}
+            style={{
+                left: `${posX}%`,
+                top: `${posY}%`,
+                width: '40px',
+                height: '40px',
+                // Removemos a transition do CSS quando estamos arrastando para não dar delay
+                transition: isDragging ? 'none' : 'all 0.2s ease-out'
+            }}
+            title={t.nome}
+            >
+            {t.imagemUrl ? (
+                <img src={t.imagemUrl} className="w-full h-full object-cover rounded-full pointer-events-none" />
+            ) : (
+                <span className="text-white font-bold text-[10px] pointer-events-none select-none">
+                    {t.nome.substring(0, 2).toUpperCase()}
+                </span>
+            )}
+            
+            {/* Nome flutuante */}
+            <div className={`absolute -bottom-6 bg-black/80 text-white text-[8px] px-1 rounded whitespace-nowrap pointer-events-none ${isDragging ? 'opacity-100' : 'opacity-0 hover:opacity-100'}`}>
+                {t.nome}
+            </div>
+            </div>
+        );
+      })}
     </div>
   );
 };

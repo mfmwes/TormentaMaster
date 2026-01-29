@@ -1,7 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// 1. Ler os dados da sala
+// 1. GERA URL PARA UPLOAD
+export const gerarUrlUpload = mutation(async (ctx) => {
+  return await ctx.storage.generateUploadUrl();
+});
+
+// 2. LÊ A SALA (Prioriza a imagem do Storage se existir)
 export const lerSala = query({
   args: { codigo: v.string() },
   handler: async (ctx, args) => {
@@ -9,13 +14,41 @@ export const lerSala = query({
       .query("salas")
       .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
       .first();
-    return sala;
+
+    if (!sala) return null;
+
+    // Resolve Imagem do Mapa
+    let mapaUrlFinal = sala.dados.mapaUrl;
+    if (sala.dados.mapaStorageId) {
+      const url = await ctx.storage.getUrl(sala.dados.mapaStorageId);
+      if (url) mapaUrlFinal = url;
+    }
+
+    // Resolve Imagens das Ameaças (mantém compatibilidade se você usar no futuro)
+    const ameacasComUrl = await Promise.all(
+      (sala.dados.ameacas || []).map(async (a: any) => {
+        if (a.imagemStorageId) {
+          const url = await ctx.storage.getUrl(a.imagemStorageId);
+          if (url) return { ...a, imagemUrl: url };
+        }
+        return a;
+      })
+    );
+
+    return {
+      ...sala,
+      dados: {
+        ...sala.dados,
+        mapaUrl: mapaUrlFinal,
+        ameacas: ameacasComUrl,
+      },
+    };
   },
 });
 
-// 2. Atualizar os dados da sala (Salvar)
+// 3. ATUALIZA A SALA (Aceita o StorageId)
 export const atualizarSala = mutation({
-  args: { 
+  args: {
     codigo: v.string(),
     dados: v.object({
       ameacas: v.any(),
@@ -23,7 +56,8 @@ export const atualizarSala = mutation({
       historico: v.any(),
       turnoIndex: v.number(),
       mapaUrl: v.optional(v.string()),
-    })
+      mapaStorageId: v.optional(v.any()), // Aceita ID ou Null
+    }),
   },
   handler: async (ctx, args) => {
     const sala = await ctx.db
@@ -32,72 +66,35 @@ export const atualizarSala = mutation({
       .first();
 
     if (sala) {
-      // Atualiza existente
-      await ctx.db.patch(sala._id, { 
+      await ctx.db.patch(sala._id, {
         dados: args.dados,
-        updatedAt: Date.now() 
-      });
-    } else {
-      // Cria nova sala se não existir
-      await ctx.db.insert("salas", {
-        codigo: args.codigo,
-        dados: args.dados,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
     }
   },
 });
-// 3. Define a senha da sala (apenas se não tiver senha ainda)
+
+// --- FUNÇÕES DE SENHA E CRIAÇÃO (NÃO ALTERADAS) ---
 export const definirSenha = mutation({
   args: { codigo: v.string(), senha: v.string() },
   handler: async (ctx, args) => {
-    const sala = await ctx.db
-      .query("salas")
-      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
-      .first();
-
-    if (sala) {
-      await ctx.db.patch(sala._id, { senha: args.senha });
-    }
+    const sala = await ctx.db.query("salas").withIndex("by_codigo", (q) => q.eq("codigo", args.codigo)).first();
+    if (sala) await ctx.db.patch(sala._id, { senha: args.senha });
   },
 });
-
-// 4. Verifica se a senha está correta
 export const verificarSenha = mutation({
   args: { codigo: v.string(), tentativa: v.string() },
   handler: async (ctx, args) => {
-    const sala = await ctx.db
-      .query("salas")
-      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
-      .first();
-
-    if (!sala || !sala.senha) return true; // Se não tem senha, libera (para salas antigas)
+    const sala = await ctx.db.query("salas").withIndex("by_codigo", (q) => q.eq("codigo", args.codigo)).first();
+    if (!sala || !sala.senha) return true;
     return sala.senha === args.tentativa;
   },
-  
-}); 
-
+});
 export const criarSala = mutation({
   args: { codigo: v.string() },
   handler: async (ctx, args) => {
-    const existe = await ctx.db
-      .query("salas")
-      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
-      .first();
-
-    if (existe) return; // Se já existe, não faz nada
-
-    await ctx.db.insert("salas", {
-      codigo: args.codigo,
-      // Não definimos senha aqui. O frontend vai detectar que está sem senha e pedir para criar.
-      dados: {
-        ameacas: [],
-        jogadores: [],
-        historico: [],
-        turnoIndex: -1,
-        mapaUrl: "",
-      },
-      updatedAt: Date.now(),
-    });
+    const existe = await ctx.db.query("salas").withIndex("by_codigo", (q) => q.eq("codigo", args.codigo)).first();
+    if (existe) return;
+    await ctx.db.insert("salas", { codigo: args.codigo, dados: { ameacas: [], jogadores: [], historico: [], turnoIndex: -1, mapaUrl: "" }, updatedAt: Date.now() });
   },
 });

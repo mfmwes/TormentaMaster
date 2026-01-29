@@ -58,3 +58,13 @@ export type ResultadoRolagem = {
   detalhes: string;
   expressao: string;
 };
+
+export type LogEntry = {
+  id: string;
+  hora: string;
+  origem: string; // Ex: "Goblin Arqueiro"
+  rotulo: string; // Ex: "Ataque (Espada)" ou "Reflexos"
+  resultado: string; // Ex: "22"
+  detalhes: string; // Ex: "[18] + 4"
+  critico: boolean;
+};

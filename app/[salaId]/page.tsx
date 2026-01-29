@@ -5,9 +5,11 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
 
-// Imports dos seus componentes e tipos
+// Tipos e Utils
 import { Ameaca, Jogador, ModeloAmeaca, LogEntry, ItemTimeline, Atributos } from "../types/game";
 import { rolarDados } from "../utils/dice";
+
+// Componentes do Mestre
 import { ModalRolagem } from "../components/modals/ModalRolagem";
 import { ModalCondicoes } from "../components/modals/ModalCondicoes";
 import { ModalBestiario } from "../components/modals/ModalBestiario";
@@ -16,24 +18,40 @@ import { ThreatCard } from "../components/ThreatCard";
 import { DiceLog } from "../components/ui/DiceLog";
 import { BattleMap } from "../components/BattleMap";
 
+// Componentes de Acesso e Jogador
+import { ModalLoginMestre } from "../components/modals/ModalLoginMestre";
+import { PlayerScreen } from "../components/PlayerScreen";
+
 export default function MesaPage() {
-  // 1. Pega o ID da sala da URL (ex: /caverna-do-dragao)
   const params = useParams();
   const salaId = params.salaId as string;
 
-  // 2. Hooks do Convex (Backend)
+  // ---------------------------------------------------------
+  // 1. CONEXÃO COM O BACKEND (CONVEX)
+  // ---------------------------------------------------------
   const dadosRemotos = useQuery(api.mesa.lerSala, { codigo: salaId });
   const salvarRemoto = useMutation(api.mesa.atualizarSala);
+  const definirSenhaRemoto = useMutation(api.mesa.definirSenha);
+  const verificarSenhaRemoto = useMutation(api.mesa.verificarSenha);
 
-  // 3. Estados Locais (UI)
+  // ---------------------------------------------------------
+  // 2. ESTADOS DA UI
+  // ---------------------------------------------------------
+  // Autenticação
+  const [isMaster, setIsMaster] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Dados do Jogo (Estado Local para UI Otimista)
   const [ameacas, setAmeacas] = useState<Ameaca[]>([]);
   const [jogadores, setJogadores] = useState<Jogador[]>([]);
   const [historico, setHistorico] = useState<LogEntry[]>([]);
   const [turnoIndex, setTurnoIndex] = useState(-1);
   const [mapaUrl, setMapaUrl] = useState("");
-  const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]); // Bestiário continua local por enquanto
+  
+  // Bestiário (Local Storage apenas)
+  const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]); 
 
-  // UI Toggles
+  // Modais e Toggles do Mestre
   const [modalResultado, setModalResultado] = useState<any | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
   const [mostrarBestiario, setMostrarBestiario] = useState(false);
@@ -46,11 +64,11 @@ export default function MesaPage() {
   const [novoNomeJog, setNovoNomeJog] = useState("");
   const [novoInicJog, setNovoInicJog] = useState("");
 
-  // =========================================================
-  // 🔄 SINCRONIZAÇÃO (A MÁGICA ACONTECE AQUI)
-  // =========================================================
+  // ---------------------------------------------------------
+  // 3. SINCRONIZAÇÃO E SEGURANÇA
+  // ---------------------------------------------------------
 
-  // 1. RECEBER DADOS: Quando o Convex avisa que mudou algo na nuvem
+  // Recebe atualizações da Nuvem
   useEffect(() => {
     if (dadosRemotos?.dados) {
       setAmeacas(dadosRemotos.dados.ameacas || []);
@@ -58,23 +76,46 @@ export default function MesaPage() {
       setHistorico(dadosRemotos.dados.historico || []);
       setTurnoIndex(dadosRemotos.dados.turnoIndex ?? -1);
       setMapaUrl(dadosRemotos.dados.mapaUrl || "");
-      
-      // Se tiver mapa vindo do banco, abre o toggle do mapa
-      if (dadosRemotos.dados.mapaUrl && !showMap) setShowMap(true);
-    }
-  }, [dadosRemotos]);
 
-  // Carregar Bestiário Local (apenas localstorage para preferência pessoal)
+      // Se tiver mapa e o mestre estiver logado, abre o mapa
+      if (dadosRemotos.dados.mapaUrl && isMaster && !showMap) setShowMap(true);
+    }
+
+    // Verifica se precisa criar senha (primeiro acesso da sala)
+    if (dadosRemotos && !dadosRemotos.senha && !isMaster && !showLoginModal) {
+       setShowLoginModal(true);
+    }
+  }, [dadosRemotos, isMaster]);
+
+  // Carrega Bestiário Local
   useEffect(() => {
     const best = localStorage.getItem("t20-bestiario-v3");
     if (best) setBestiario(JSON.parse(best));
   }, []);
   useEffect(() => { 
-    localStorage.setItem("t20-bestiario-v3", JSON.stringify(bestiario)); 
+    if (bestiario.length > 0) localStorage.setItem("t20-bestiario-v3", JSON.stringify(bestiario)); 
   }, [bestiario]);
 
-  // 2. ENVIAR DADOS: Função central para salvar no banco
-  // Ela recebe os valores NOVOS, e usa os valores do ESTADO para o que não mudou
+  // Função de Login
+  const tentarLogin = async (senhaDigitada: string) => {
+    if (!dadosRemotos?.senha) {
+        // Cria a senha
+        await definirSenhaRemoto({ codigo: salaId, senha: senhaDigitada });
+        setIsMaster(true);
+        setShowLoginModal(false);
+    } else {
+        // Verifica a senha
+        const valido = await verificarSenhaRemoto({ codigo: salaId, tentativa: senhaDigitada });
+        if (valido) {
+            setIsMaster(true);
+            setShowLoginModal(false);
+        } else {
+            alert("Senha incorreta!");
+        }
+    }
+  };
+
+  // Função Central de Salvamento
   const salvarGlobal = (partial: { 
     ameacas?: Ameaca[], 
     jogadores?: Jogador[], 
@@ -82,14 +123,14 @@ export default function MesaPage() {
     turnoIndex?: number, 
     mapaUrl?: string 
   }) => {
-    // Atualiza o estado local para feedback instantâneo (Optimistic UI)
+    // Atualiza local (UI instantânea)
     if (partial.ameacas) setAmeacas(partial.ameacas);
     if (partial.jogadores) setJogadores(partial.jogadores);
     if (partial.historico) setHistorico(partial.historico);
     if (partial.turnoIndex !== undefined) setTurnoIndex(partial.turnoIndex);
     if (partial.mapaUrl !== undefined) setMapaUrl(partial.mapaUrl);
 
-    // Envia para o Convex
+    // Envia para Nuvem
     salvarRemoto({
       codigo: salaId,
       dados: {
@@ -102,40 +143,28 @@ export default function MesaPage() {
     });
   };
 
-  // =========================================================
-  // 🎮 LÓGICA DO JOGO (Refatorada para usar salvarGlobal)
-  // =========================================================
+  // ---------------------------------------------------------
+  // 4. LÓGICA DE JOGO (MESTRE)
+  // ---------------------------------------------------------
 
   const rolar = (expr: string, origem = "Sistema", rotulo = "Rolagem") => {
     const res = rolarDados(expr);
     if (!res) return;
-
     const novoLog: LogEntry = {
       id: crypto.randomUUID(),
-      hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       origem, rotulo, resultado: res.total.toString(), detalhes: res.detalhes, critico: res.detalhes.includes("20")
     };
-
-    const novoHistorico = [...historico.slice(-49), novoLog];
-    
     setModalResultado(res);
     if (!showLog) setShowLog(true);
-    
-    // Salva no banco
-    salvarGlobal({ historico: novoHistorico });
+    salvarGlobal({ historico: [...historico.slice(-49), novoLog] });
   };
 
-  // --- CRUD AMEAÇAS ---
   const updateAmeaca = (id: string, campo: keyof Ameaca, valor: any) => {
-    const novasAmeacas = ameacas.map(a => a.id === id ? { ...a, [campo]: valor } : a);
-    salvarGlobal({ ameacas: novasAmeacas });
+    salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, [campo]: valor } : a) });
   };
-
-  const removeAmeaca = (id: string) => {
-    const novasAmeacas = ameacas.filter(a => a.id !== id);
-    salvarGlobal({ ameacas: novasAmeacas });
-  };
-
+  const removeAmeaca = (id: string) => salvarGlobal({ ameacas: ameacas.filter(a => a.id !== id) });
+  
   const addAmeaca = () => {
     const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
     const nova: Ameaca = {
@@ -148,171 +177,131 @@ export default function MesaPage() {
   };
 
   const cloneAmeaca = (original: Ameaca) => {
-    const copia = { ...original, id: crypto.randomUUID(), nome: `${original.nome} (Cópia)`, iniciativaAtual: undefined, x: 50, y: 50 };
-    salvarGlobal({ ameacas: [...ameacas, copia] });
+    salvarGlobal({ ameacas: [...ameacas, { ...original, id: crypto.randomUUID(), nome: `${original.nome} (Cópia)`, iniciativaAtual: undefined, x: 50, y: 50 }] });
   };
 
   const toggleCondicao = (id: string, cond: string) => {
-    const novasAmeacas = ameacas.map(a => a.id !== id ? a : { ...a, condicoes: a.condicoes.includes(cond) ? a.condicoes.filter(c => c !== cond) : [...a.condicoes, cond] });
-    salvarGlobal({ ameacas: novasAmeacas });
-  };
-
-  // --- INICIATIVA ---
-  const calcularIniciativa = (pericias: string) => {
-    const match = pericias.match(/Iniciativa\s*:?\s*([+-]?\d+)/i);
-    return Math.floor(Math.random() * 20) + 1 + (match ? parseInt(match[1]) : 0);
+    salvarGlobal({ ameacas: ameacas.map(a => a.id !== id ? a : { ...a, condicoes: a.condicoes.includes(cond) ? a.condicoes.filter(c => c !== cond) : [...a.condicoes, cond] }) });
   };
 
   const rolarIniciativaIndividual = (id: string) => {
     const am = ameacas.find(a => a.id === id);
     if (am) {
-      const val = calcularIniciativa(am.pericias);
-      const novasAmeacas = ameacas.map(a => a.id === id ? { ...a, iniciativaAtual: val } : a);
+      const match = am.pericias.match(/Iniciativa\s*:?\s*([+-]?\d+)/i);
+      const mod = match ? parseInt(match[1]) : 0;
+      const total = Math.floor(Math.random() * 20) + 1 + mod;
       
-      // Rola dado (log) e atualiza ficha ao mesmo tempo
-      // Nota: Para simplificar, aqui chamamos o salvarGlobal 2x indiretamente ou construimos a logica.
-      // Vamos fazer manual para garantir 1 save:
-      const res = rolarDados("1d20+?"); 
-      const novoLog: LogEntry = { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: am.nome, rotulo: "Iniciativa", resultado: val.toString(), detalhes: "Auto", critico: false };
+      const novoLog: LogEntry = { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: am.nome, rotulo: "Iniciativa", resultado: total.toString(), detalhes: "Auto", critico: false };
       
       salvarGlobal({ 
-          ameacas: novasAmeacas,
+          ameacas: ameacas.map(a => a.id === id ? { ...a, iniciativaAtual: total } : a),
           historico: [...historico.slice(-49), novoLog]
       });
     }
   };
 
   const rolarIniciativaGlobal = () => {
-    const novasAmeacas = ameacas.map(a => ({ ...a, iniciativaAtual: calcularIniciativa(a.pericias) }));
-    // Gera log
-    const novoLog: LogEntry = { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: "Mestre", rotulo: "Iniciativa em Massa", resultado: "Rolado", detalhes: "Todos", critico: false };
-    
-    salvarGlobal({ 
-        ameacas: novasAmeacas, 
-        turnoIndex: 0,
-        historico: [...historico.slice(-49), novoLog]
+    const novas = ameacas.map(a => {
+        const match = a.pericias.match(/Iniciativa\s*:?\s*([+-]?\d+)/i);
+        const mod = match ? parseInt(match[1]) : 0;
+        return { ...a, iniciativaAtual: Math.floor(Math.random() * 20) + 1 + mod };
     });
+    salvarGlobal({ ameacas: novas, turnoIndex: 0, historico: [...historico.slice(-49), { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: "Mestre", rotulo: "Iniciativa em Massa", resultado: "Rolado", detalhes: "Todos", critico: false }] });
   };
 
-  // --- MAPA E MOVIMENTO ---
+  // Mapa e Jogadores
   const moverToken = (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => {
-    if (tipo === "AMEACA") {
-      const novas = ameacas.map(a => a.id === id ? { ...a, x, y } : a);
-      salvarGlobal({ ameacas: novas });
-    } else {
-      const novos = jogadores.map(j => j.id === id ? { ...j, x, y } : j);
-      salvarGlobal({ jogadores: novos });
-    }
+    if (tipo === "AMEACA") salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, x, y } : a) });
+    else salvarGlobal({ jogadores: jogadores.map(j => j.id === id ? { ...j, x, y } : j) });
   };
 
-  const atualizarMapaUrl = (url: string) => {
-      salvarGlobal({ mapaUrl: url });
-  };
-
-  // --- JOGADORES ---
   const addJogador = () => {
     if (novoNomeJog) {
-      const novo = { id: crypto.randomUUID(), nome: novoNomeJog, iniciativa: Number(novoInicJog), x: 50, y: 50 };
-      salvarGlobal({ jogadores: [...jogadores, novo] });
+      salvarGlobal({ jogadores: [...jogadores, { id: crypto.randomUUID(), nome: novoNomeJog, iniciativa: Number(novoInicJog), x: 50, y: 50 }] });
       setNovoNomeJog("");
     }
   };
 
-  const removeJogador = (id: string) => {
-      salvarGlobal({ jogadores: jogadores.filter(j => j.id !== id) });
-  };
-  
-  const updateJogadorInic = (id: string, val: number) => {
-      salvarGlobal({ jogadores: jogadores.map(j => j.id === id ? { ...j, iniciativa: val } : j) });
-  };
-
-  // --- CONTROLE DE TURNO E DESCANSO ---
   const timeline: ItemTimeline[] = [
     ...ameacas.filter(a => a.iniciativaAtual !== undefined).map(a => ({ id: a.id, nome: a.nome, iniciativa: a.iniciativaAtual!, tipo: "AMEACA" as const })),
     ...jogadores.map(j => ({ id: j.id, nome: j.nome, iniciativa: j.iniciativa, tipo: "JOGADOR" as const }))
   ].sort((a, b) => b.iniciativa - a.iniciativa);
 
-  const proximoTurno = () => {
-    if (timeline.length > 0) {
-        salvarGlobal({ turnoIndex: (turnoIndex + 1) % timeline.length });
-    }
-  };
+  const proximoTurno = () => { if (timeline.length > 0) salvarGlobal({ turnoIndex: (turnoIndex + 1) % timeline.length }); };
+  const ameacasFiltradas = ameacas.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()) || a.tipo.toLowerCase().includes(busca.toLowerCase()));
+  const tokensMap = [...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })), ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))];
 
-  const descansar = () => {
-    if (confirm("Resetar Combate?")) {
-      const novasAmeacas = ameacas.map(a => ({ ...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: [] }));
-      salvarGlobal({ 
-          ameacas: novasAmeacas, 
-          turnoIndex: -1, 
-          historico: [] 
-      });
-    }
-  };
-
-  // --- IMPORT/EXPORT (Bestiário e Arquivo) ---
-  // Nota: Bestiário continua local, mas salvar na mesa envia pra nuvem
+  // Bestiário e Import
   const salvarModelo = (a: Ameaca) => {
-    const novoModelo: ModeloAmeaca = {
-      nome: a.nome, nd: a.nd, tipo: a.tipo, deslocamento: a.deslocamento, defesa: a.defesa,
-      pvPadrao: a.pvMax, pmPadrao: a.pmMax, pvMax: a.pvMax, pmMax: a.pmMax,
-      acoes: a.acoes, pericias: a.pericias, atributos: a.atributos, imagemUrl: a.imagemUrl
-    };
-    setBestiario(prev => [...prev.filter(b => b.nome !== a.nome), novoModelo]);
+    const modelo: ModeloAmeaca = { ...a, pvPadrao: a.pvMax, pmPadrao: a.pmMax };
+    setBestiario(prev => [...prev.filter(b => b.nome !== a.nome), modelo]);
     alert("Salvo no Bestiário Local!");
   };
-
   const importarModelo = (m: ModeloAmeaca) => {
-    const nova = { ...m, id: crypto.randomUUID(), pvAtual: m.pvPadrao, pmAtual: m.pmPadrao, condicoes: [], iniciativaAtual: undefined, x: 50, y: 50 };
-    salvarGlobal({ ameacas: [...ameacas, nova] });
+    salvarGlobal({ ameacas: [...ameacas, { ...m, id: crypto.randomUUID(), pvAtual: m.pvPadrao, pmAtual: m.pmPadrao, condicoes: [], iniciativaAtual: undefined, x: 50, y: 50 }] });
     setMostrarBestiario(false);
   };
-
   const processarImportacaoTexto = (dados: Partial<Ameaca>) => {
-    const atributosPadrao = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
+    const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
     const nova: Ameaca = {
-        id: crypto.randomUUID(),
-        nome: dados.nome || "Ameaça", nd: dados.nd || "?", tipo: dados.tipo || "Criatura", deslocamento: dados.deslocamento || "9m",
+        id: crypto.randomUUID(), nome: dados.nome || "Ameaça", nd: dados.nd || "?", tipo: dados.tipo || "Criatura", deslocamento: dados.deslocamento || "9m",
         defesa: dados.defesa || 10, pvMax: dados.pvMax || 10, pvAtual: dados.pvMax || 10, pmMax: dados.pmMax || 0, pmAtual: dados.pmMax || 0,
         acoes: dados.acoes || [], pericias: dados.pericias || "Iniciativa +0", atributos: dados.atributos || atributosPadrao,
         condicoes: [], imagemUrl: "", iniciativaAtual: undefined, x: 50, y: 50
     } as Ameaca;
-    
     salvarGlobal({ ameacas: [...ameacas, nova] });
     setMostrarImportacao(false);
   };
 
-  // Filtragem e Tokens
-  const ameacasFiltradas = ameacas.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()) || a.tipo.toLowerCase().includes(busca.toLowerCase()));
-  
-  const tokensMap = [
-      ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })),
-      ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))
-  ];
+  // ---------------------------------------------------------
+  // 5. RENDERIZAÇÃO CONDICIONAL
+  // ---------------------------------------------------------
 
-  if (dadosRemotos === undefined) return <div className="h-screen flex items-center justify-center text-white font-bold bg-gray-950">Conectando à sala...</div>;
+  if (dadosRemotos === undefined) return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
 
+  // A) Modal de Login/Criação
+  if (showLoginModal) {
+      return <ModalLoginMestre ehPrimeiroAcesso={!dadosRemotos.senha} onConfirmar={tentarLogin} />;
+  }
+
+  // B) Visão do Jogador (Não Mestre)
+  if (!isMaster) {
+      return (
+          <div className="relative w-full h-full">
+              <button onClick={() => setShowLoginModal(true)} className="fixed top-4 right-4 z-[100] bg-black/30 hover:bg-red-600 text-white/50 hover:text-white p-2 rounded-full backdrop-blur transition border border-white/10" title="Acesso do Mestre">🔒</button>
+              
+              <PlayerScreen 
+                ameacas={ameacas} 
+                jogadores={jogadores} 
+                turnoIndex={turnoIndex} 
+                mapaUrl={mapaUrl} 
+                historico={historico} // <--- Passando o histórico aqui
+              />
+          </div>
+      );
+  }
+
+  // C) Visão do Mestre (Dashboard Completa)
   return (
     <div className="flex bg-gray-950 min-h-screen text-gray-100 font-sans overflow-x-hidden">
-      
       <div className={`flex-grow p-4 md:p-6 pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
         
+        {/* Modais */}
         <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
         {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
         {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
         {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
         
-        {/* HEADER */}
+        {/* Header Mestre */}
         <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
-            <h1 className="text-3xl font-black text-red-600">TORMENTA<span className="text-white font-light">MASTER</span> <span className="text-xs text-gray-600 font-mono ml-2 border border-gray-800 px-2 rounded">Sala: {salaId}</span></h1>
+            <h1 className="text-3xl font-black text-red-600 flex items-center gap-2">
+                TORMENTA<span className="text-white font-light">MASTER</span> 
+                <span className="text-xs text-gray-500 font-mono border border-gray-800 px-2 py-0.5 rounded bg-black/20">Sala: {salaId}</span>
+            </h1>
             
             {showMap ? (
                 <div className="flex-grow max-w-lg mx-2 animate-in fade-in">
-                    <input 
-                        className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-                        placeholder="Cole o link da imagem do mapa..."
-                        value={mapaUrl}
-                        onChange={(e) => atualizarMapaUrl(e.target.value)}
-                    />
+                    <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link da imagem do mapa..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
                 </div>
             ) : (
                 <div className="relative w-full max-w-md mx-4">
@@ -328,11 +317,11 @@ export default function MesaPage() {
                <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova</button>
                <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 border-indigo-700 px-3 py-2 rounded font-bold text-sm">📚 Bestiário</button>
                <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 border-yellow-500 px-3 py-2 rounded font-bold text-sm">⚡ Iniciar</button>
-               <button onClick={descansar} className="bg-green-900 border-green-700 px-3 py-2 rounded font-bold text-sm" title="Descanso">💤</button>
+               <button onClick={() => { if(confirm("Resetar Combate?")) salvarGlobal({ ameacas: ameacas.map(a => ({...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: []})), turnoIndex: -1, historico: [] }) }} className="bg-green-900 border-green-700 px-3 py-2 rounded font-bold text-sm" title="Descanso">💤</button>
             </div>
         </header>
 
-        {/* ÁREA DO MAPA */}
+        {/* Mapa */}
         {showMap && (
             <div className="mb-8 w-full aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-700 relative shadow-2xl animate-in fade-in slide-in-from-top-4">
                 <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} onMoveToken={moverToken} />
@@ -340,7 +329,7 @@ export default function MesaPage() {
             </div>
         )}
 
-        {/* TIMELINE */}
+        {/* Timeline */}
         <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
@@ -352,9 +341,9 @@ export default function MesaPage() {
                     return (
                         <div key={`${item.tipo}-${item.id}`} className={`flex items-center gap-3 p-2 border-l-4 rounded transition-all ${isTurno ? 'bg-gray-700 border-yellow-400' : 'bg-opacity-20 border-transparent ' + (item.tipo === 'AMEACA' ? 'bg-gray-800 border-l-red-800' : 'bg-blue-900 border-l-blue-800')}`} onClick={() => salvarGlobal({ turnoIndex: idx })}>
                             <span className={`font-mono w-6 font-bold text-center ${isTurno ? 'text-yellow-400' : 'text-gray-500'}`}>{isTurno ? '▶' : `#${idx+1}`}</span>
-                            <input type="number" className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700 text-sm" value={item.iniciativa} onChange={(e) => { if(item.tipo === 'AMEACA') { const novas = ameacas.map(a => a.id === item.id ? { ...a, iniciativaAtual: Number(e.target.value) } : a); salvarGlobal({ ameacas: novas }); } else { updateJogadorInic(item.id, Number(e.target.value)) } }} />
+                            <input type="number" className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700 text-sm" value={item.iniciativa} onChange={(e) => { if(item.tipo === 'AMEACA') salvarGlobal({ ameacas: ameacas.map(a => a.id === item.id ? { ...a, iniciativaAtual: Number(e.target.value) } : a) }); else salvarGlobal({ jogadores: jogadores.map(j => j.id === item.id ? { ...j, iniciativa: Number(e.target.value) } : j) }) }} />
                             <span className={`flex-grow font-bold text-sm ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'} ${isTurno ? 'text-white' : ''}`}>{item.nome}</span>
-                            {item.tipo === 'JOGADOR' && <button onClick={() => removeJogador(item.id)} className="text-gray-500 hover:text-red-500 font-bold px-2 text-xs">✕</button>}
+                            {item.tipo === 'JOGADOR' && <button onClick={() => salvarGlobal({ jogadores: jogadores.filter(j => j.id !== item.id) })} className="text-gray-500 hover:text-red-500 font-bold px-2 text-xs">✕</button>}
                         </div>
                     );
                 })}
@@ -366,7 +355,7 @@ export default function MesaPage() {
             </div>
         </section>
 
-        {/* CARDS */}
+        {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {ameacasFiltradas.length === 0 && ameacas.length > 0 && <div className="col-span-full text-center py-10 text-gray-500">Sem resultados para "{busca}".</div>}
             {ameacasFiltradas.map(a => (

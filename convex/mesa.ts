@@ -47,3 +47,31 @@ export const atualizarSala = mutation({
     }
   },
 });
+// 3. Define a senha da sala (apenas se não tiver senha ainda)
+export const definirSenha = mutation({
+  args: { codigo: v.string(), senha: v.string() },
+  handler: async (ctx, args) => {
+    const sala = await ctx.db
+      .query("salas")
+      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
+      .first();
+
+    if (sala) {
+      await ctx.db.patch(sala._id, { senha: args.senha });
+    }
+  },
+});
+
+// 4. Verifica se a senha está correta
+export const verificarSenha = mutation({
+  args: { codigo: v.string(), tentativa: v.string() },
+  handler: async (ctx, args) => {
+    const sala = await ctx.db
+      .query("salas")
+      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
+      .first();
+
+    if (!sala || !sala.senha) return true; // Se não tem senha, libera (para salas antigas)
+    return sala.senha === args.tentativa;
+  },
+});

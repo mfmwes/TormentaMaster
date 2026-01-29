@@ -33,6 +33,10 @@ export type Ameaca = {
   iniciativaAtual?: number;
   condicoes: string[];
   imagemUrl?: string;
+  x?: number; // Posição X em % (0 a 100)
+  y?: number; // Posição Y em % (0 a 100)
+  tamanho?: number; // 1 = Médio, 2 = Grande...
+  cor?: string; // Para diferenciar tokens
 };
 
 export type ModeloAmeaca = Omit<Ameaca, "id" | "iniciativaAtual" | "pvAtual" | "pmAtual" | "condicoes"> & {
@@ -44,6 +48,9 @@ export type Jogador = {
   id: string;
   nome: string;
   iniciativa: number;
+  x?: number;
+  y?: number;
+  cor?: string;
 };
 
 export type ItemTimeline = {

@@ -1,11 +1,12 @@
 "use client";
-
+import { Atributos } from "./types/game";
 import  { useState, useEffect, useRef } from "react";
 import { Ameaca, Jogador, ModeloAmeaca, ResultadoRolagem, ItemTimeline } from "./types/game";
 import { rolarDados } from "./utils/dice";
 import { ModalRolagem } from "./components/modals/ModalRolagem";
 import { ModalCondicoes } from "./components/modals/ModalCondicoes";
 import { ModalBestiario } from "./components/modals/ModalBestiario";
+import { ModalImportacao } from "./components/modals/ModalImportacao";
 import { ThreatCard } from "./components/ThreatCard";
 
 export default function Page() {
@@ -17,6 +18,7 @@ export default function Page() {
   const [modalResultado, setModalResultado] = useState<ResultadoRolagem | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
   const [mostrarBestiario, setMostrarBestiario] = useState(false);
+  const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [isClient, setIsClient] = useState(false);
   
   // Inputs temporários
@@ -26,26 +28,24 @@ export default function Page() {
   /* --- PERSISTÊNCIA --- */
   useEffect(() => {
     setIsClient(true);
-    const mesa = localStorage.getItem("t20-master-screen-v3");
+    const mesa = localStorage.getItem("t20-master-screen-v4"); // Bump version
     if (mesa) { const p = JSON.parse(mesa); setAmeacas(p.ameacas||[]); setJogadores(p.jogadores||[]); }
-    const best = localStorage.getItem("t20-bestiario-v1");
+    const best = localStorage.getItem("t20-bestiario-v2"); // Bump version
     if (best) setBestiario(JSON.parse(best));
   }, []);
 
-  useEffect(() => { if(isClient) localStorage.setItem("t20-master-screen-v3", JSON.stringify({ameacas, jogadores})); }, [ameacas, jogadores, isClient]);
-  useEffect(() => { if(isClient) localStorage.setItem("t20-bestiario-v1", JSON.stringify(bestiario)); }, [bestiario, isClient]);
+  useEffect(() => { if(isClient) localStorage.setItem("t20-master-screen-v4", JSON.stringify({ameacas, jogadores})); }, [ameacas, jogadores, isClient]);
+  useEffect(() => { if(isClient) localStorage.setItem("t20-bestiario-v2", JSON.stringify(bestiario)); }, [bestiario, isClient]);
 
   /* --- ACTIONS GERAIS --- */
   const rolar = (expr: string) => setModalResultado(rolarDados(expr));
   
-  // Função auxiliar para calcular iniciativa baseada no texto
   const calcularIniciativa = (pericias: string): number => {
     const match = pericias.match(/Iniciativa\s*:?\s*([+-]?\d+)/i);
     const bonus = match ? parseInt(match[1]) : 0;
     return Math.floor(Math.random() * 20) + 1 + bonus;
   };
 
-  // Rola iniciativa APENAS para uma ameaça específica
   const rolarIniciativaIndividual = (id: string) => {
     setAmeacas(prev => prev.map(a => {
       if (a.id !== id) return a;
@@ -53,7 +53,6 @@ export default function Page() {
     }));
   };
 
-  // Rola para TODOS
   const rolarIniciativaGlobal = () => {
     setAmeacas(prev => prev.map(a => ({ ...a, iniciativaAtual: calcularIniciativa(a.pericias) })));
   };
@@ -63,27 +62,51 @@ export default function Page() {
     setAmeacas(prev => prev.map(a => a.id === id ? { ...a, [campo]: valor } : a));
   };
 
+  const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
+
   const addAmeaca = () => {
-    // Verifica se já existe combate ativo (alguém tem iniciativa definida?)
     const combateAtivo = ameacas.some(a => a.iniciativaAtual !== undefined) || jogadores.length > 0;
     const periciasPadrao = "Iniciativa +0";
-    
     setAmeacas([...ameacas, { 
       id: crypto.randomUUID(), 
-      nome: "Nova Ameaça", 
+      nome: "Nova Ameaça", nd: "1", tipo: "Monstro", deslocamento: "9m",
       defesa: 10, pvAtual: 10, pvMax: 10, pmAtual: 0, pmMax: 0, 
       ataques: "Ataque +0 (1d4)", 
       pericias: periciasPadrao, 
+      atributos: atributosPadrao,
       condicoes: [],
-      // Se o combate estiver ativo, já rola
-      iniciativaAtual: combateAtivo ? calcularIniciativa(periciasPadrao) : undefined 
+      iniciativaAtual: combateAtivo ? calcularIniciativa(periciasPadrao) : undefined,
+      imagemUrl: ""
     }]);
+  };
+
+  const processarImportacaoTexto = (dados: Partial<Ameaca>) => {
+    const combateAtivo = ameacas.some(a => a.iniciativaAtual !== undefined) || jogadores.length > 0;
+    
+    const nova: Ameaca = {
+        id: crypto.randomUUID(),
+        nome: dados.nome || "Ameaça",
+        nd: dados.nd || "?",
+        tipo: dados.tipo || "Criatura",
+        deslocamento: dados.deslocamento || "9m",
+        defesa: dados.defesa || 10,
+        pvMax: dados.pvMax || 10, pvAtual: dados.pvMax || 10,
+        pmMax: dados.pmMax || 0, pmAtual: dados.pmMax || 0,
+        ataques: dados.ataques || "",
+        pericias: dados.pericias || "Iniciativa +0",
+        atributos: dados.atributos || atributosPadrao,
+        condicoes: [],
+        imagemUrl: "",
+        iniciativaAtual: combateAtivo ? calcularIniciativa(dados.pericias || "") : undefined
+    };
+
+    setAmeacas([...ameacas, nova]);
+    setMostrarImportacao(false);
   };
 
   const removeAmeaca = (id: string) => setAmeacas(prev => prev.filter(a => a.id !== id));
   
   const cloneAmeaca = (original: Ameaca) => {
-     // Ao clonar, mantemos undefined na iniciativa para não duplicar o valor exato, mas o usuário pode clicar em rolar depois
      setAmeacas([...ameacas, { ...original, id: crypto.randomUUID(), nome: `${original.nome} (Cópia)`, iniciativaAtual: undefined }]);
   };
   
@@ -98,7 +121,14 @@ export default function Page() {
   /* --- BESTIÁRIO & BACKUP --- */
   const salvarModelo = (a: Ameaca) => {
     setBestiario(prev => [...prev.filter(b => b.nome !== a.nome), {
-      nome: a.nome, defesa: a.defesa, pvPadrao: a.pvMax, pvMax: a.pvMax, pmPadrao: a.pmMax, pmMax: a.pmMax, ataques: a.ataques, pericias: a.pericias
+      nome: a.nome, nd: a.nd, tipo: a.tipo, deslocamento: a.deslocamento,
+      defesa: a.defesa, 
+      pvPadrao: a.pvMax, pvMax: a.pvMax, 
+      pmPadrao: a.pmMax, pmMax: a.pmMax, 
+      ataques: a.ataques, 
+      pericias: a.pericias,
+      atributos: a.atributos,
+      imagemUrl: a.imagemUrl
     }]);
     alert("Salvo no Bestiário!");
   };
@@ -111,7 +141,8 @@ export default function Page() {
         pvAtual: m.pvPadrao, 
         pmAtual: m.pmPadrao, 
         condicoes: [],
-        iniciativaAtual: combateAtivo ? calcularIniciativa(m.pericias) : undefined
+        iniciativaAtual: combateAtivo ? calcularIniciativa(m.pericias) : undefined,
+        imagemUrl: m.imagemUrl || ""
     }]);
     setMostrarBestiario(false);
   };
@@ -139,6 +170,7 @@ export default function Page() {
       <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
       {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
       {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
+      {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
 
       {/* HEADER */}
       <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
@@ -148,6 +180,8 @@ export default function Page() {
               <button onClick={exportar} className="px-3 text-xs text-gray-400 hover:text-white border-r border-gray-700">⬇️ Backup</button>
               <label className="px-3 text-xs text-gray-400 hover:text-white cursor-pointer">⬆️ Restaurar <input type="file" className="hidden" onChange={importar} /></label>
            </div>
+           
+           <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold transition flex items-center gap-2">📋 Importar Texto</button>
            <button onClick={addAmeaca} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold transition">+ Ameaça</button>
            <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 hover:bg-indigo-800 border border-indigo-700 px-3 py-2 rounded font-bold transition">📚 Bestiário</button>
            <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 hover:bg-yellow-700 border border-yellow-500 px-3 py-2 rounded font-bold transition">⚡ Rolar Tudo</button>

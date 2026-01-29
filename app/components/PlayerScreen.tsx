@@ -1,4 +1,4 @@
-import  { useState } from "react";
+import React, { useState } from "react";
 import { Ameaca, Jogador, ItemTimeline, LogEntry } from "../types/game";
 import { BattleMap } from "../components/BattleMap";
 import { DiceLog } from "../components/ui/DiceLog";
@@ -9,12 +9,12 @@ type Props = {
   turnoIndex: number;
   mapaUrl: string;
   historico: LogEntry[];
+  onMoveToken: (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => void; // Recebe a função
 };
 
-export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historico }: Props) => {
+export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historico, onMoveToken }: Props) => {
   const [showLog, setShowLog] = useState(false);
 
-  // 1. Prepara a Timeline (Ordenada)
   const timeline: ItemTimeline[] = [
     ...ameacas.filter(a => a.iniciativaAtual !== undefined).map(a => ({ id: a.id, nome: a.nome, iniciativa: a.iniciativaAtual!, tipo: "AMEACA" as const })),
     ...jogadores.map(j => ({ id: j.id, nome: j.nome, iniciativa: j.iniciativa, tipo: "JOGADOR" as const }))
@@ -23,13 +23,11 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
   const ativo = timeline[turnoIndex];
   const dadosAtivo = ativo?.tipo === 'AMEACA' ? ameacas.find(a => a.id === ativo.id) : null;
 
-  // 2. Prepara Tokens para o Mapa
   const tokensMap = [
       ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })),
       ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))
   ];
 
-  // Se não tiver ninguém em combate
   if (timeline.length === 0) {
     return <div className="h-screen bg-black flex items-center justify-center text-gray-500 font-bold tracking-widest uppercase animate-pulse">Aguardando Combate...</div>;
   }
@@ -37,35 +35,28 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
   return (
     <div className="h-screen w-screen bg-gray-950 overflow-hidden flex flex-col relative font-sans">
       
-      {/* --- BOTÃO DE LOG FLUTUANTE --- */}
       <div className="absolute top-4 left-4 z-50">
-        <button 
-          onClick={() => setShowLog(!showLog)} 
-          className={`bg-gray-900/80 backdrop-blur border px-4 py-2 rounded-full font-bold text-sm transition shadow-2xl flex items-center gap-2 ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-800 text-white'}`}
-        >
+        <button onClick={() => setShowLog(!showLog)} className={`bg-gray-900/80 backdrop-blur border px-4 py-2 rounded-full font-bold text-sm transition shadow-2xl flex items-center gap-2 ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-800 text-white'}`}>
           📜 Log <span className="text-[10px] bg-gray-800 px-1.5 rounded-full border border-gray-700">{historico.length}</span>
         </button>
       </div>
 
-      {/* --- COMPONENTE DE LOG (Lateral) --- */}
-      <DiceLog 
-        historico={historico} 
-        limpar={() => {}} // Jogador não pode limpar o histórico global
-        isOpen={showLog} 
-        onClose={() => setShowLog(false)} 
-      />
+      <DiceLog historico={historico} limpar={() => {}} isOpen={showLog} onClose={() => setShowLog(false)} />
 
-      {/* --- ÁREA PRINCIPAL (MAPA ou CINEMÁTICO) --- */}
       <div className="flex-grow relative w-full h-full">
-        
         {mapaUrl ? (
-           // MODO MAPA
            <div className="w-full h-full">
-               <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} readonly={true} />
+               {/* Habilita movimentação para jogadores (isGm=false) */}
+               <BattleMap 
+                  mapaUrl={mapaUrl} 
+                  tokens={tokensMap} 
+                  readonly={false} 
+                  isGm={false}
+                  onMoveToken={onMoveToken} 
+               />
                
-               {/* Card Flutuante do Turno (Sobre o Mapa) */}
                {ativo && (
-                  <div className="absolute top-4 right-4 bg-gray-900/90 border border-yellow-500 p-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-md z-40 animate-in slide-in-from-right">
+                  <div className="absolute top-4 right-4 bg-gray-900/90 border border-yellow-500 p-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-md z-40 animate-in slide-in-from-right pointer-events-none">
                       <div className="relative">
                         {dadosAtivo?.imagemUrl ? <img src={dadosAtivo.imagemUrl} className="w-14 h-14 rounded-full border-2 border-white object-cover" alt="" /> : <div className="w-14 h-14 bg-gray-800 rounded-full border border-gray-600 flex items-center justify-center">👾</div>}
                         <div className="absolute -bottom-2 -right-2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded border border-gray-700">{ativo.iniciativa}</div>
@@ -78,9 +69,8 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                )}
            </div>
         ) : (
-           // MODO CINEMÁTICO (Sem Mapa)
+           /* MODO CINEMÁTICO */
            <div className="w-full h-full flex items-center justify-center relative">
-               {/* Background Borrado */}
                <div className="absolute inset-0 z-0">
                   {dadosAtivo?.imagemUrl ? (
                       <img src={dadosAtivo.imagemUrl} className="w-full h-full object-cover opacity-30 blur-xl scale-110 transition-all duration-1000" alt="" />
@@ -90,7 +80,6 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                   <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/50 to-transparent"></div>
               </div>
 
-              {/* Avatar Gigante */}
               <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-500">
                   <div className="relative mb-8">
                       <div className="absolute inset-0 bg-red-500 rounded-full blur-[100px] opacity-20"></div>
@@ -114,7 +103,6 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
         )}
       </div>
 
-      {/* --- TIMELINE (Rodapé Fixo) --- */}
       <div className="h-auto min-h-[90px] bg-gray-900/90 backdrop-blur-md border-t border-gray-800 p-2 relative z-40">
           <div className="flex gap-3 overflow-x-auto h-full items-center px-4 scrollbar-hide py-2">
               {timeline.map((item, idx) => {

@@ -26,32 +26,26 @@ export default function MesaPage() {
   const params = useParams();
   const salaId = params.salaId as string;
 
-  // ---------------------------------------------------------
-  // 1. CONEXÃO COM O BACKEND (CONVEX)
-  // ---------------------------------------------------------
+  // 1. CONEXÃO COM O BACKEND
   const dadosRemotos = useQuery(api.mesa.lerSala, { codigo: salaId });
   const salvarRemoto = useMutation(api.mesa.atualizarSala);
   const definirSenhaRemoto = useMutation(api.mesa.definirSenha);
   const verificarSenhaRemoto = useMutation(api.mesa.verificarSenha);
   const criarSalaRemoto = useMutation(api.mesa.criarSala);
 
-  // ---------------------------------------------------------
   // 2. ESTADOS DA UI
-  // ---------------------------------------------------------
   const [isMaster, setIsMaster] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Dados do Jogo (Estado Local para UI Otimista)
+  // Dados do Jogo
   const [ameacas, setAmeacas] = useState<Ameaca[]>([]);
   const [jogadores, setJogadores] = useState<Jogador[]>([]);
   const [historico, setHistorico] = useState<LogEntry[]>([]);
   const [turnoIndex, setTurnoIndex] = useState(-1);
   const [mapaUrl, setMapaUrl] = useState("");
   
-  // Bestiário (Local Storage apenas)
+  // Bestiário e Toggles
   const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]); 
-
-  // UI Toggles
   const [modalResultado, setModalResultado] = useState<any | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
   const [mostrarBestiario, setMostrarBestiario] = useState(false);
@@ -64,10 +58,7 @@ export default function MesaPage() {
   const [novoNomeJog, setNovoNomeJog] = useState("");
   const [novoInicJog, setNovoInicJog] = useState("");
 
-  // ---------------------------------------------------------
-  // 3. SINCRONIZAÇÃO E SEGURANÇA
-  // ---------------------------------------------------------
-
+  // 3. SINCRONIZAÇÃO
   useEffect(() => {
     if (dadosRemotos?.dados) {
       setAmeacas(dadosRemotos.dados.ameacas || []);
@@ -80,7 +71,6 @@ export default function MesaPage() {
       if (dadosRemotos.dados.mapaUrl && isMaster && !showMap) setShowMap(true);
     }
 
-    // Verifica se precisa criar senha (primeiro acesso)
     if (dadosRemotos && !dadosRemotos.senha && !isMaster && !showLoginModal) {
        setShowLoginModal(true);
     }
@@ -96,9 +86,7 @@ export default function MesaPage() {
 
   const tentarLogin = async (senhaDigitada: string) => {
     if (!dadosRemotos) return;
-    
     const temSenha = (dadosRemotos as any).senha; 
-
     if (!temSenha) {
         await definirSenhaRemoto({ codigo: salaId, senha: senhaDigitada });
         setIsMaster(true);
@@ -139,10 +127,7 @@ export default function MesaPage() {
     });
   };
 
-  // ---------------------------------------------------------
-  // 4. LÓGICA DE JOGO (MÉTODOS)
-  // ---------------------------------------------------------
-
+  // 4. MÉTODOS
   const rolar = (expr: string, origem = "Sistema", rotulo = "Rolagem") => {
     const res = rolarDados(expr);
     if (!res) return;
@@ -186,9 +171,7 @@ export default function MesaPage() {
       const match = am.pericias.match(/Iniciativa\s*:?\s*([+-]?\d+)/i);
       const mod = match ? parseInt(match[1]) : 0;
       const total = Math.floor(Math.random() * 20) + 1 + mod;
-      
       const novoLog: LogEntry = { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: am.nome, rotulo: "Iniciativa", resultado: total.toString(), detalhes: "Auto", critico: false };
-      
       salvarGlobal({ 
           ameacas: ameacas.map(a => a.id === id ? { ...a, iniciativaAtual: total } : a),
           historico: [...historico.slice(-49), novoLog]
@@ -247,30 +230,20 @@ export default function MesaPage() {
     setMostrarImportacao(false);
   };
 
-  // ---------------------------------------------------------
   // 5. RENDERIZAÇÃO
-  // ---------------------------------------------------------
-
-  // 1. Loading
   if (dadosRemotos === undefined) {
     return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
   }
 
-  // 2. Não Encontrado (404) -> OFERECE CRIAR SALA
   if (dadosRemotos === null) {
     return (
         <div className="h-screen bg-gray-950 flex flex-col items-center justify-center text-white p-4 text-center">
             <h1 className="text-6xl font-black text-gray-800 mb-4">404</h1>
             <p className="text-xl text-gray-300 mb-2">A sala <span className="text-red-500 font-mono font-bold">"{salaId}"</span> não existe.</p>
             <p className="text-gray-500 mb-8 text-sm">Deseja fundar esta nova mesa de jogo?</p>
-            
-            <button 
-                onClick={() => criarSalaRemoto({ codigo: salaId })}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-red-900/20 transition hover:scale-105 active:scale-95"
-            >
+            <button onClick={() => criarSalaRemoto({ codigo: salaId })} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-red-900/20 transition hover:scale-105 active:scale-95">
                 🔥 Criar Sala Agora
             </button>
-            
             <a href="/" className="mt-8 text-gray-600 hover:text-gray-400 text-xs underline">Voltar para o início</a>
         </div>
     );
@@ -293,6 +266,7 @@ export default function MesaPage() {
                 turnoIndex={turnoIndex} 
                 mapaUrl={mapaUrl}
                 historico={historico}
+                onMoveToken={moverToken} // JOGADOR AGORA MOVE TOKEN
               />
           </div>
       );
@@ -340,7 +314,7 @@ export default function MesaPage() {
         {/* MAPA */}
         {showMap && (
             <div className="mb-8 w-full aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-700 relative shadow-2xl animate-in fade-in slide-in-from-top-4">
-                <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} onMoveToken={moverToken} />
+                <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} onMoveToken={moverToken} isGm={true} />
                 <div className="absolute bottom-2 right-2 text-[10px] text-gray-500 bg-black/50 px-2 rounded pointer-events-none">Arraste os tokens</div>
             </div>
         )}
@@ -368,7 +342,6 @@ export default function MesaPage() {
                                 }} 
                             />
                             <span className={`flex-grow font-bold text-sm ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'} ${isTurno ? 'text-white' : ''}`}>{item.nome}</span>
-                            
                             {item.tipo === 'JOGADOR' && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); salvarGlobal({ jogadores: jogadores.filter(j => j.id !== item.id) }); }} 

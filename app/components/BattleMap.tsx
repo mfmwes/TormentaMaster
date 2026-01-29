@@ -16,16 +16,15 @@ type BattleMapProps = {
   tokens: Token[];
   onMoveToken?: (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => void;
   readonly?: boolean;
+  isGm?: boolean; // Nova propriedade para permissão
 };
 
-export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: BattleMapProps) => {
+export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false, isGm = false }: BattleMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   
-  // Estado local para saber quem está sendo arrastado e onde ele está AGORA (sem esperar o servidor)
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [tempPosition, setTempPosition] = useState<{x: number, y: number} | null>(null);
 
-  // Limpa o estado se soltar o mouse fora da div
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       if (draggingId) finalizarArrasto();
@@ -34,12 +33,16 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [draggingId, tempPosition]);
 
-  const iniciarArrasto = (id: string, e: React.MouseEvent, currentX: number, currentY: number) => {
-    if (!readonly) {
-        e.stopPropagation();
-        setDraggingId(id);
-        setTempPosition({ x: currentX, y: currentY });
-    }
+  const iniciarArrasto = (id: string, e: React.MouseEvent, currentX: number, currentY: number, tipo: "AMEACA" | "JOGADOR") => {
+    if (readonly) return;
+
+    // REGRA DE SEGURANÇA: Jogador não move Ameaça
+    if (!isGm && tipo === "AMEACA") return;
+
+    e.stopPropagation();
+    e.preventDefault(); // Previne comportamento de arrastar imagem nativa do navegador
+    setDraggingId(id);
+    setTempPosition({ x: currentX, y: currentY });
   };
 
   const moverArrasto = (e: React.MouseEvent) => {
@@ -49,7 +52,6 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-    // Atualiza APENAS o visual localmente (super fluido)
     setTempPosition({ 
         x: Math.max(0, Math.min(100, x)), 
         y: Math.max(0, Math.min(100, y)) 
@@ -58,10 +60,8 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
 
   const finalizarArrasto = () => {
     if (draggingId && tempPosition && onMoveToken) {
-        // Busca os dados originais para saber o tipo
         const tokenOriginal = tokens.find(t => t.id === draggingId);
         if (tokenOriginal) {
-            // SÓ AGORA envia para o servidor
             onMoveToken(draggingId, tokenOriginal.tipo, tempPosition.x, tempPosition.y);
         }
     }
@@ -75,7 +75,6 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
       onMouseMove={moverArrasto}
       ref={mapRef}
     >
-      {/* MAPA */}
       {mapaUrl ? (
           <img src={mapaUrl} className="w-full h-full object-contain pointer-events-none" alt="Mapa" />
       ) : (
@@ -84,19 +83,21 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
           </div>
       )}
 
-      {/* TOKENS */}
       {tokens.map((t) => {
-        // Se este token está sendo arrastado, usa a posição TEMPORÁRIA. Se não, usa a do BANCO.
         const isDragging = draggingId === t.id;
         const posX = isDragging && tempPosition ? tempPosition.x : t.x;
         const posY = isDragging && tempPosition ? tempPosition.y : t.y;
 
+        // Define se o cursor mostra que é possível mover
+        const podeMover = !readonly && (isGm || t.tipo === "JOGADOR");
+        const cursorClass = podeMover ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default';
+
         return (
             <div
             key={t.id}
-            onMouseDown={(e) => iniciarArrasto(t.id, e, t.x, t.y)}
+            onMouseDown={(e) => iniciarArrasto(t.id, e, t.x, t.y, t.tipo)}
             className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-lg flex items-center justify-center transition-transform z-10 
-                ${readonly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}
+                ${cursorClass}
                 ${t.tipo === 'AMEACA' ? 'border-red-500 bg-red-900' : 'border-blue-500 bg-blue-900'}
                 ${isDragging ? 'scale-125 z-50 shadow-xl ring-2 ring-white' : ''}
             `}
@@ -105,7 +106,6 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
                 top: `${posY}%`,
                 width: '40px',
                 height: '40px',
-                // Removemos a transition do CSS quando estamos arrastando para não dar delay
                 transition: isDragging ? 'none' : 'all 0.2s ease-out'
             }}
             title={t.nome}
@@ -118,7 +118,6 @@ export const BattleMap = ({ mapaUrl, tokens, onMoveToken, readonly = false }: Ba
                 </span>
             )}
             
-            {/* Nome flutuante */}
             <div className={`absolute -bottom-6 bg-black/80 text-white text-[8px] px-1 rounded whitespace-nowrap pointer-events-none ${isDragging ? 'opacity-100' : 'opacity-0 hover:opacity-100'}`}>
                 {t.nome}
             </div>

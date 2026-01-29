@@ -21,6 +21,8 @@ import { BattleMap } from "../components/BattleMap";
 // Componentes de Acesso e Jogador
 import { ModalLoginMestre } from "../components/modals/ModalLoginMestre";
 import { PlayerScreen } from "../components/PlayerScreen";
+import { UploadButton } from "../components/ui/UploadButton";
+
 
 export default function MesaPage() {
   const params = useParams();
@@ -67,7 +69,6 @@ export default function MesaPage() {
       setTurnoIndex(dadosRemotos.dados.turnoIndex ?? -1);
       setMapaUrl(dadosRemotos.dados.mapaUrl || "");
 
-      // Se tiver mapa e o mestre estiver logado, abre o mapa
       if (dadosRemotos.dados.mapaUrl && isMaster && !showMap) setShowMap(true);
     }
 
@@ -102,12 +103,14 @@ export default function MesaPage() {
     }
   };
 
+  // --- FUNÇÃO ATUALIZADA PARA O UPLOAD ---
   const salvarGlobal = (partial: { 
-    ameacas?: Ameaca[], 
-    jogadores?: Jogador[], 
+    ameacas?: any[], 
+    jogadores?: any[], 
     historico?: LogEntry[], 
     turnoIndex?: number, 
-    mapaUrl?: string 
+    mapaUrl?: string,
+    mapaStorageId?: string | null // Aceita ID ou Null
   }) => {
     if (partial.ameacas) setAmeacas(partial.ameacas);
     if (partial.jogadores) setJogadores(partial.jogadores);
@@ -122,7 +125,11 @@ export default function MesaPage() {
         jogadores: partial.jogadores ?? jogadores,
         historico: partial.historico ?? historico,
         turnoIndex: partial.turnoIndex ?? turnoIndex,
-        mapaUrl: partial.mapaUrl ?? mapaUrl
+        mapaUrl: partial.mapaUrl ?? mapaUrl,
+        // Lógica para salvar ou apagar o ID do mapa
+        mapaStorageId: partial.mapaStorageId !== undefined 
+            ? partial.mapaStorageId 
+            : (dadosRemotos?.dados as any)?.mapaStorageId
       }
     });
   };
@@ -230,7 +237,6 @@ export default function MesaPage() {
     setMostrarImportacao(false);
   };
 
-  // 5. RENDERIZAÇÃO
   if (dadosRemotos === undefined) {
     return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
   }
@@ -249,12 +255,10 @@ export default function MesaPage() {
     );
   }
 
-  // A) Modal de Login
   if (showLoginModal) {
       return <ModalLoginMestre ehPrimeiroAcesso={!(dadosRemotos as any).senha} onConfirmar={tentarLogin} />;
   }
 
-  // B) Visão do Jogador
   if (!isMaster) {
       return (
           <div className="relative w-full h-full">
@@ -266,13 +270,12 @@ export default function MesaPage() {
                 turnoIndex={turnoIndex} 
                 mapaUrl={mapaUrl}
                 historico={historico}
-                onMoveToken={moverToken} // JOGADOR AGORA MOVE TOKEN
+                onMoveToken={moverToken}
               />
           </div>
       );
   }
 
-  // C) Dashboard Mestre
   return (
     <div className="flex bg-gray-950 min-h-screen text-gray-100 font-sans overflow-x-hidden">
       <div className={`flex-grow p-4 md:p-6 pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
@@ -290,8 +293,26 @@ export default function MesaPage() {
             </h1>
             
             {showMap ? (
-                <div className="flex-grow max-w-lg mx-2 animate-in fade-in">
-                    <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link da imagem do mapa..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
+                <div className="flex-grow max-w-lg mx-2 animate-in fade-in flex gap-2 items-center">
+                    <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link ou Upload..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
+                    
+                    {/* BOTÃO UPLOAD MAPA */}
+                    <UploadButton 
+                        label="Mapa" 
+                        onUploadComplete={(id) => salvarGlobal({ mapaStorageId: id, mapaUrl: "" })} 
+                        className="bg-blue-900 hover:bg-blue-800 text-white px-3 py-2 rounded text-xs font-bold border border-blue-700 whitespace-nowrap"
+                    />
+
+                    {/* BOTÃO REMOVER MAPA */}
+                    {(mapaUrl || (dadosRemotos?.dados as any)?.mapaStorageId) && (
+                        <button 
+                            onClick={() => salvarGlobal({ mapaUrl: "", mapaStorageId: null })}
+                            className="bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white p-2 rounded border border-red-800 transition"
+                            title="Remover Mapa"
+                        >
+                            🗑️
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="relative w-full max-w-md mx-4">

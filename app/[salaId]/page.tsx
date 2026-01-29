@@ -33,6 +33,7 @@ export default function MesaPage() {
   const salvarRemoto = useMutation(api.mesa.atualizarSala);
   const definirSenhaRemoto = useMutation(api.mesa.definirSenha);
   const verificarSenhaRemoto = useMutation(api.mesa.verificarSenha);
+  const criarSalaRemoto = useMutation(api.mesa.criarSala); // <--- NOVO HOOK
 
   // ---------------------------------------------------------
   // 2. ESTADOS DA UI
@@ -255,12 +256,22 @@ export default function MesaPage() {
     return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
   }
 
-  // 2. Não Encontrado (404)
+  // 2. Não Encontrado (404) -> OFERECE CRIAR SALA
   if (dadosRemotos === null) {
     return (
-        <div className="h-screen bg-gray-950 flex flex-col items-center justify-center text-white">
-            <h1 className="text-4xl font-bold mb-4">🚫 404</h1>
-            <p className="text-gray-400">Esta sala não existe.</p>
+        <div className="h-screen bg-gray-950 flex flex-col items-center justify-center text-white p-4 text-center">
+            <h1 className="text-6xl font-black text-gray-800 mb-4">404</h1>
+            <p className="text-xl text-gray-300 mb-2">A sala <span className="text-red-500 font-mono font-bold">"{salaId}"</span> não existe.</p>
+            <p className="text-gray-500 mb-8 text-sm">Deseja fundar esta nova mesa de jogo?</p>
+            
+            <button 
+                onClick={() => criarSalaRemoto({ codigo: salaId })}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-red-900/20 transition hover:scale-105 active:scale-95"
+            >
+                🔥 Criar Sala Agora
+            </button>
+            
+            <a href="/" className="mt-8 text-gray-600 hover:text-gray-400 text-xs underline">Voltar para o início</a>
         </div>
     );
   }

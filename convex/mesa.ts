@@ -74,4 +74,30 @@ export const verificarSenha = mutation({
     if (!sala || !sala.senha) return true; // Se não tem senha, libera (para salas antigas)
     return sala.senha === args.tentativa;
   },
+  
+}); 
+
+export const criarSala = mutation({
+  args: { codigo: v.string() },
+  handler: async (ctx, args) => {
+    const existe = await ctx.db
+      .query("salas")
+      .withIndex("by_codigo", (q) => q.eq("codigo", args.codigo))
+      .first();
+
+    if (existe) return; // Se já existe, não faz nada
+
+    await ctx.db.insert("salas", {
+      codigo: args.codigo,
+      // Não definimos senha aqui. O frontend vai detectar que está sem senha e pedir para criar.
+      dados: {
+        ameacas: [],
+        jogadores: [],
+        historico: [],
+        turnoIndex: -1,
+        mapaUrl: "",
+      },
+      updatedAt: Date.now(),
+    });
+  },
 });

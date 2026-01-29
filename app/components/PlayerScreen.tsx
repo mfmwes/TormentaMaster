@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Ameaca, Jogador, ItemTimeline, LogEntry } from "../types/game";
 import { BattleMap } from "../components/BattleMap";
 import { DiceLog } from "../components/ui/DiceLog";
@@ -9,7 +9,7 @@ type Props = {
   turnoIndex: number;
   mapaUrl: string;
   historico: LogEntry[];
-  onMoveToken: (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => void; // Recebe a função
+  onMoveToken: (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => void;
 };
 
 export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historico, onMoveToken }: Props) => {
@@ -20,6 +20,7 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
     ...jogadores.map(j => ({ id: j.id, nome: j.nome, iniciativa: j.iniciativa, tipo: "JOGADOR" as const }))
   ].sort((a, b) => b.iniciativa - a.iniciativa);
 
+  // Se turnoIndex for -1, ativo será undefined. Isso é normal.
   const ativo = timeline[turnoIndex];
   const dadosAtivo = ativo?.tipo === 'AMEACA' ? ameacas.find(a => a.id === ativo.id) : null;
 
@@ -28,6 +29,7 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
       ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))
   ];
 
+  // Caso 1: Ninguém na timeline
   if (timeline.length === 0) {
     return <div className="h-screen bg-black flex items-center justify-center text-gray-500 font-bold tracking-widest uppercase animate-pulse">Aguardando Combate...</div>;
   }
@@ -35,6 +37,7 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
   return (
     <div className="h-screen w-screen bg-gray-950 overflow-hidden flex flex-col relative font-sans">
       
+      {/* Botão de Log */}
       <div className="absolute top-4 left-4 z-50">
         <button onClick={() => setShowLog(!showLog)} className={`bg-gray-900/80 backdrop-blur border px-4 py-2 rounded-full font-bold text-sm transition shadow-2xl flex items-center gap-2 ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-800 text-white'}`}>
           📜 Log <span className="text-[10px] bg-gray-800 px-1.5 rounded-full border border-gray-700">{historico.length}</span>
@@ -45,8 +48,8 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
 
       <div className="flex-grow relative w-full h-full">
         {mapaUrl ? (
+           /* --- MODO MAPA --- */
            <div className="w-full h-full">
-               {/* Habilita movimentação para jogadores (isGm=false) */}
                <BattleMap 
                   mapaUrl={mapaUrl} 
                   tokens={tokensMap} 
@@ -55,6 +58,7 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                   onMoveToken={onMoveToken} 
                />
                
+               {/* Só mostra o overlay se houver um turno ativo */}
                {ativo && (
                   <div className="absolute top-4 right-4 bg-gray-900/90 border border-yellow-500 p-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-md z-40 animate-in slide-in-from-right pointer-events-none">
                       <div className="relative">
@@ -69,8 +73,9 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                )}
            </div>
         ) : (
-           /* MODO CINEMÁTICO */
+           /* --- MODO CINEMÁTICO (SEM MAPA) --- */
            <div className="w-full h-full flex items-center justify-center relative">
+               {/* Fundo Ambiente */}
                <div className="absolute inset-0 z-0">
                   {dadosAtivo?.imagemUrl ? (
                       <img src={dadosAtivo.imagemUrl} className="w-full h-full object-cover opacity-30 blur-xl scale-110 transition-all duration-1000" alt="" />
@@ -80,29 +85,39 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                   <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/50 to-transparent"></div>
               </div>
 
-              <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-500">
-                  <div className="relative mb-8">
-                      <div className="absolute inset-0 bg-red-500 rounded-full blur-[100px] opacity-20"></div>
-                      {dadosAtivo?.imagemUrl ? (
-                          <img src={dadosAtivo.imagemUrl} className="w-64 h-64 md:w-80 md:h-80 object-cover rounded-full border-4 border-red-500/50 shadow-[0_0_60px_rgba(220,38,38,0.3)]" alt="" />
-                      ) : (
-                          <div className="w-64 h-64 md:w-80 md:h-80 bg-gray-800 rounded-full border-4 border-gray-600 flex items-center justify-center text-8xl shadow-2xl">
-                              {ativo.tipo === 'JOGADOR' ? '🛡️' : '👾'}
+              {/* Conteúdo Central */}
+              {ativo ? (
+                  <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                      <div className="relative mb-8">
+                          <div className="absolute inset-0 bg-red-500 rounded-full blur-[100px] opacity-20"></div>
+                          {dadosAtivo?.imagemUrl ? (
+                              <img src={dadosAtivo.imagemUrl} className="w-64 h-64 md:w-80 md:h-80 object-cover rounded-full border-4 border-red-500/50 shadow-[0_0_60px_rgba(220,38,38,0.3)]" alt="" />
+                          ) : (
+                              <div className="w-64 h-64 md:w-80 md:h-80 bg-gray-800 rounded-full border-4 border-gray-600 flex items-center justify-center text-8xl shadow-2xl">
+                                  {ativo.tipo === 'JOGADOR' ? '🛡️' : '👾'}
+                              </div>
+                          )}
+                          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 text-white px-6 py-2 rounded-full font-black text-2xl shadow-xl z-20">
+                              {ativo.iniciativa}
                           </div>
-                      )}
-                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 text-white px-6 py-2 rounded-full font-black text-2xl shadow-xl z-20">
-                          {ativo.iniciativa}
                       </div>
+                      <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 drop-shadow-lg text-center tracking-tight px-4">
+                          {ativo.nome}
+                      </h1>
+                      <p className="text-xl text-red-400 font-bold uppercase tracking-[0.3em] mt-2 text-center">Turno Atual</p>
                   </div>
-                  <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 drop-shadow-lg text-center tracking-tight px-4">
-                      {ativo.nome}
-                  </h1>
-                  <p className="text-xl text-red-400 font-bold uppercase tracking-[0.3em] mt-2 text-center">Turno Atual</p>
-              </div>
+              ) : (
+                  // CASO O TURNO AINDA NÃO TENHA COMEÇADO (ativo = undefined)
+                  <div className="relative z-10 text-center animate-pulse">
+                      <div className="text-6xl mb-4">⚔️</div>
+                      <h2 className="text-2xl text-gray-500 font-bold uppercase tracking-widest">Aguardando Início do Turno...</h2>
+                  </div>
+              )}
            </div>
         )}
       </div>
 
+      {/* Timeline Inferior */}
       <div className="h-auto min-h-[90px] bg-gray-900/90 backdrop-blur-md border-t border-gray-800 p-2 relative z-40">
           <div className="flex gap-3 overflow-x-auto h-full items-center px-4 scrollbar-hide py-2">
               {timeline.map((item, idx) => {

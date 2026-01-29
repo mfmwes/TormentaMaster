@@ -9,22 +9,61 @@ type Props = {
   onDelete: (id: string) => void;
   onClone: (ameaca: Ameaca) => void;
   onSaveModel: (ameaca: Ameaca) => void;
-  onToggleCondition: (id: string) => void; // Abre o modal
+  onToggleCondition: (id: string) => void;
   onRoll: (expr: string) => void;
+  onRollIniciativa: () => void;
 };
 
-export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, onToggleCondition, onRoll }: Props) => {
+export const ThreatCard = ({ 
+  ameaca, 
+  onUpdate, 
+  onDelete, 
+  onClone, 
+  onSaveModel, 
+  onToggleCondition, 
+  onRoll,
+  onRollIniciativa
+}: Props) => {
   const morta = ameaca.pvAtual <= 0;
 
   return (
     <div className={`bg-gray-900 rounded-xl border shadow-xl overflow-hidden flex flex-col transition-all ${ameaca.iniciativaAtual !== undefined ? 'border-red-900/50' : 'border-gray-800'} ${morta ? 'opacity-50 grayscale' : ''}`}>
       {/* Header */}
       <div className="p-4 bg-gray-800/50 border-b border-gray-800 relative">
+        
+        {/* Badge de Iniciativa (Novo) */}
+        <div className="absolute top-0 left-0">
+            {ameaca.iniciativaAtual !== undefined ? (
+                <div 
+                    onClick={onRollIniciativa}
+                    className="bg-red-900/80 text-white text-[10px] font-bold px-2 py-1 rounded-br shadow-md cursor-pointer hover:bg-red-800 transition border-b border-r border-red-800"
+                    title="Clique para Rerolar"
+                >
+                  INIC: {ameaca.iniciativaAtual}
+                </div>
+            ) : (
+                <button 
+                    onClick={onRollIniciativa}
+                    className="bg-gray-700 text-gray-400 text-[10px] font-bold px-2 py-1 rounded-br shadow-md hover:bg-yellow-600 hover:text-white transition flex items-center gap-1 border-b border-r border-gray-600"
+                    title="Entrar no Combate (Rolar Iniciativa)"
+                >
+                  ⚡ Rolar
+                </button>
+            )}
+        </div>
+
         <div className="absolute top-2 right-2 flex gap-1">
           <button onClick={() => onSaveModel(ameaca)} className="text-gray-500 hover:text-yellow-400 p-1" title="Salvar no Bestiário">💾</button>
           <button onClick={() => onDelete(ameaca.id)} className="text-gray-500 hover:text-red-500 p-1" title="Excluir">🗑️</button>
         </div>
-        <input className="bg-transparent text-lg font-bold w-9/12 text-white focus:outline-none focus:border-b focus:border-red-500" value={ameaca.nome} onChange={(e) => onUpdate(ameaca.id, "nome", e.target.value)} />
+        
+        {/* Input Nome com margem top para não bater na badge */}
+        <input 
+            className="bg-transparent text-lg font-bold w-10/12 text-white focus:outline-none focus:border-b focus:border-red-500 mt-4 placeholder-gray-600" 
+            value={ameaca.nome} 
+            onChange={(e) => onUpdate(ameaca.id, "nome", e.target.value)} 
+            placeholder="Nome da Ameaça"
+        />
         
         {/* Badges de Condição */}
         <div className="flex flex-wrap gap-1 mt-2 min-h-[24px]">

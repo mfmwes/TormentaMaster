@@ -33,7 +33,7 @@ export default function MesaPage() {
   const salvarRemoto = useMutation(api.mesa.atualizarSala);
   const definirSenhaRemoto = useMutation(api.mesa.definirSenha);
   const verificarSenhaRemoto = useMutation(api.mesa.verificarSenha);
-  const criarSalaRemoto = useMutation(api.mesa.criarSala); // <--- NOVO HOOK
+  const criarSalaRemoto = useMutation(api.mesa.criarSala);
 
   // ---------------------------------------------------------
   // 2. ESTADOS DA UI
@@ -357,9 +357,26 @@ export default function MesaPage() {
                     return (
                         <div key={`${item.tipo}-${item.id}`} className={`flex items-center gap-3 p-2 border-l-4 rounded transition-all ${isTurno ? 'bg-gray-700 border-yellow-400' : 'bg-opacity-20 border-transparent ' + (item.tipo === 'AMEACA' ? 'bg-gray-800 border-l-red-800' : 'bg-blue-900 border-l-blue-800')}`} onClick={() => salvarGlobal({ turnoIndex: idx })}>
                             <span className={`font-mono w-6 font-bold text-center ${isTurno ? 'text-yellow-400' : 'text-gray-500'}`}>{isTurno ? '▶' : `#${idx+1}`}</span>
-                            <input type="number" className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700 text-sm" value={item.iniciativa} onChange={(e) => { if(item.tipo === 'AMEACA') salvarGlobal({ ameacas: ameacas.map(a => a.id === item.id ? { ...a, iniciativaAtual: Number(e.target.value) } : a) }); else salvarGlobal({ jogadores: jogadores.map(j => j.id === item.id ? { ...j, iniciativa: Number(e.target.value) } : j) }) }} />
+                            <input 
+                                type="number" 
+                                className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700 text-sm" 
+                                value={item.iniciativa} 
+                                onClick={(e) => e.stopPropagation()} 
+                                onChange={(e) => { 
+                                    if(item.tipo === 'AMEACA') salvarGlobal({ ameacas: ameacas.map(a => a.id === item.id ? { ...a, iniciativaAtual: Number(e.target.value) } : a) }); 
+                                    else salvarGlobal({ jogadores: jogadores.map(j => j.id === item.id ? { ...j, iniciativa: Number(e.target.value) } : j) }) 
+                                }} 
+                            />
                             <span className={`flex-grow font-bold text-sm ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'} ${isTurno ? 'text-white' : ''}`}>{item.nome}</span>
-                            {item.tipo === 'JOGADOR' && <button onClick={() => salvarGlobal({ jogadores: jogadores.filter(j => j.id !== item.id) })} className="text-gray-500 hover:text-red-500 font-bold px-2 text-xs">✕</button>}
+                            
+                            {item.tipo === 'JOGADOR' && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); salvarGlobal({ jogadores: jogadores.filter(j => j.id !== item.id) }); }} 
+                                    className="text-gray-500 hover:text-red-500 font-bold px-2 text-xs w-6 h-6 flex items-center justify-center rounded hover:bg-gray-800 transition"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                     );
                 })}

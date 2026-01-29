@@ -6,7 +6,7 @@ export const gerarUrlUpload = mutation(async (ctx) => {
   return await ctx.storage.generateUploadUrl();
 });
 
-// 2. LÊ A SALA (Prioriza a imagem do Storage se existir)
+// 2. LÊ A SALA E RESOLVE TODAS AS IMAGENS
 export const lerSala = query({
   args: { codigo: v.string() },
   handler: async (ctx, args) => {
@@ -17,14 +17,14 @@ export const lerSala = query({
 
     if (!sala) return null;
 
-    // Resolve Imagem do Mapa
+    // A) Resolve Imagem do Mapa
     let mapaUrlFinal = sala.dados.mapaUrl;
     if (sala.dados.mapaStorageId) {
       const url = await ctx.storage.getUrl(sala.dados.mapaStorageId);
       if (url) mapaUrlFinal = url;
     }
 
-    // Resolve Imagens das Ameaças (mantém compatibilidade se você usar no futuro)
+    // B) Resolve Imagens das Ameaças
     const ameacasComUrl = await Promise.all(
       (sala.dados.ameacas || []).map(async (a: any) => {
         if (a.imagemStorageId) {
@@ -35,18 +35,30 @@ export const lerSala = query({
       })
     );
 
+    // C) Resolve Imagens dos Jogadores
+    const jogadoresComUrl = await Promise.all(
+      (sala.dados.jogadores || []).map(async (j: any) => {
+        if (j.imagemStorageId) {
+          const url = await ctx.storage.getUrl(j.imagemStorageId);
+          if (url) return { ...j, imagemUrl: url };
+        }
+        return j;
+      })
+    );
+
     return {
       ...sala,
       dados: {
         ...sala.dados,
         mapaUrl: mapaUrlFinal,
         ameacas: ameacasComUrl,
+        jogadores: jogadoresComUrl,
       },
     };
   },
 });
 
-// 3. ATUALIZA A SALA (Aceita o StorageId)
+// 3. ATUALIZA A SALA
 export const atualizarSala = mutation({
   args: {
     codigo: v.string(),
@@ -56,7 +68,7 @@ export const atualizarSala = mutation({
       historico: v.any(),
       turnoIndex: v.number(),
       mapaUrl: v.optional(v.string()),
-      mapaStorageId: v.optional(v.any()), // Aceita ID ou Null
+      mapaStorageId: v.optional(v.any()),
     }),
   },
   handler: async (ctx, args) => {
@@ -74,7 +86,7 @@ export const atualizarSala = mutation({
   },
 });
 
-// --- FUNÇÕES DE SENHA E CRIAÇÃO (NÃO ALTERADAS) ---
+// --- FUNÇÕES DE ACESSO ---
 export const definirSenha = mutation({
   args: { codigo: v.string(), senha: v.string() },
   handler: async (ctx, args) => {

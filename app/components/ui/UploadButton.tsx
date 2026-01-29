@@ -6,9 +6,10 @@ type Props = {
   onUploadComplete: (storageId: string) => void;
   label?: string;
   className?: string;
+  compact?: boolean;
 };
 
-export const UploadButton = ({ onUploadComplete, label = "Upload", className }: Props) => {
+export const UploadButton = ({ onUploadComplete, label = "Upload", className, compact = false }: Props) => {
   const gerarUrl = useMutation(api.mesa.gerarUrlUpload);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -43,9 +44,10 @@ export const UploadButton = ({ onUploadComplete, label = "Upload", className }: 
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className={className || "bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs font-bold transition"}
+        className={className || `bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-bold py-1 px-3 rounded text-xs transition flex items-center gap-2 ${uploading ? "opacity-50 cursor-wait" : ""}`}
+        title="Enviar imagem do dispositivo"
       >
-        {uploading ? "..." : label}
+        {uploading ? "..." : (compact ? "📁" : `📁 ${label}`)}
       </button>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
     </>

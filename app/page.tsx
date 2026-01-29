@@ -21,28 +21,37 @@ export default function Page() {
   const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [isClient, setIsClient] = useState(false);
   
-  // LOG & BUSCA
+  // LOG & BUSCA & TURNO
   const [historico, setHistorico] = useState<LogEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [busca, setBusca] = useState("");
-  const [turnoIndex, setTurnoIndex] = useState(-1);
+  const [turnoIndex, setTurnoIndex] = useState(-1); // Estado do Turno
 
-  // Inputs Jogador
   const [novoNomeJog, setNovoNomeJog] = useState("");
   const [novoInicJog, setNovoInicJog] = useState("");
 
   useEffect(() => {
     setIsClient(true);
-    const mesa = localStorage.getItem("t20-master-screen-v6"); 
-    if (mesa) { const p = JSON.parse(mesa); setAmeacas(p.ameacas||[]); setJogadores(p.jogadores||[]); setHistorico(p.historico||[]); }
+    // Versão V7 para garantir compatibilidade com o player
+    const mesa = localStorage.getItem("t20-master-screen-v7"); 
+    if (mesa) { 
+        const p = JSON.parse(mesa); 
+        setAmeacas(p.ameacas||[]); 
+        setJogadores(p.jogadores||[]); 
+        setHistorico(p.historico||[]);
+        setTurnoIndex(p.turnoIndex ?? -1);
+    }
     const best = localStorage.getItem("t20-bestiario-v3");
     if (best) setBestiario(JSON.parse(best));
   }, []);
 
-  useEffect(() => { if(isClient) localStorage.setItem("t20-master-screen-v6", JSON.stringify({ameacas, jogadores, historico})); }, [ameacas, jogadores, historico, isClient]);
+  // Salva TUDO, incluindo o turnoIndex, para o Player ler
+  useEffect(() => { 
+      if(isClient) localStorage.setItem("t20-master-screen-v7", JSON.stringify({ameacas, jogadores, historico, turnoIndex})); 
+  }, [ameacas, jogadores, historico, turnoIndex, isClient]);
+  
   useEffect(() => { if(isClient) localStorage.setItem("t20-bestiario-v3", JSON.stringify(bestiario)); }, [bestiario, isClient]);
 
-  // FUNÇÃO ROLAR (Agora ativa Modal E Log)
   const rolar = (expr: string, origem = "Sistema", rotulo = "Rolagem") => {
       const res = rolarDados(expr);
       if(!res) return;
@@ -50,15 +59,11 @@ export default function Page() {
       const novoLog: LogEntry = {
           id: crypto.randomUUID(),
           hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit', second:'2-digit'}),
-          origem,
-          rotulo,
-          resultado: res.total.toString(),
-          detalhes: res.detalhes,
-          critico: res.detalhes.includes("20")
+          origem, rotulo, resultado: res.total.toString(), detalhes: res.detalhes, critico: res.detalhes.includes("20")
       };
       
       setHistorico(prev => [...prev.slice(-49), novoLog]);
-      setModalResultado(res); // <--- ATIVADO O POP-UP
+      setModalResultado(res);
       if (!showLog) setShowLog(true);
   };
 
@@ -105,33 +110,25 @@ export default function Page() {
     } as Ameaca]);
     setMostrarImportacao(false);
   };
- const salvarModelo = (a: Ameaca) => {
-    // Cria o objeto limpo, apenas com o que o Bestiário precisa
+  
+  const salvarModelo = (a: Ameaca) => {
+    // Corrige o objeto para o formato ModeloAmeaca (sem ID, status atual, etc)
     const novoModelo: ModeloAmeaca = {
-      nome: a.nome,
-      nd: a.nd,
-      tipo: a.tipo,
-      deslocamento: a.deslocamento,
-      defesa: a.defesa,
-      pvMax: a.pvMax,
-      pmMax: a.pmMax,
-      pvPadrao: a.pvMax, 
-      pmPadrao: a.pmMax, 
-      acoes: a.acoes,
-      pericias: a.pericias,
-      atributos: a.atributos,
-      imagemUrl: a.imagemUrl
+      nome: a.nome, nd: a.nd, tipo: a.tipo, deslocamento: a.deslocamento, defesa: a.defesa,
+      pvPadrao: a.pvMax, pmPadrao: a.pmMax, pvMax: a.pvMax, pmMax: a.pmMax,
+      acoes: a.acoes, pericias: a.pericias, atributos: a.atributos, imagemUrl: a.imagemUrl
     };
-
     setBestiario(prev => [...prev.filter(b => b.nome !== a.nome), novoModelo]);
-    alert("Salvo no Bestiário!");
+    alert("Salvo!");
   };
+
   const importarModelo = (m: ModeloAmeaca) => {
     setAmeacas([...ameacas, { ...m, id: crypto.randomUUID(), pvAtual: m.pvPadrao, pmAtual: m.pmPadrao, condicoes: [], iniciativaAtual: undefined }]);
     setMostrarBestiario(false);
   };
-  const exportar = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({ameacas, jogadores, bestiario, historico}, null, 2)], {type: "application/json"})); a.download = "t20-backup-v6.json"; a.click(); };
-  const importar = (e: any) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target?.result as string); setAmeacas(d.ameacas); setJogadores(d.jogadores); setBestiario(d.bestiario); setHistorico(d.historico||[]); } catch(e){} }; if(e.target.files?.[0]) r.readAsText(e.target.files[0]); };
+  
+  const exportar = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({ameacas, jogadores, bestiario, historico, turnoIndex}, null, 2)], {type: "application/json"})); a.download = "t20-backup-v7.json"; a.click(); };
+  const importar = (e: any) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target?.result as string); setAmeacas(d.ameacas); setJogadores(d.jogadores); setBestiario(d.bestiario); setHistorico(d.historico||[]); setTurnoIndex(d.turnoIndex ?? -1); } catch(e){} }; if(e.target.files?.[0]) r.readAsText(e.target.files[0]); };
 
   const timeline: ItemTimeline[] = [
     ...ameacas.filter(a => a.iniciativaAtual !== undefined).map(a => ({ id: a.id, nome: a.nome, iniciativa: a.iniciativaAtual!, tipo: "AMEACA" as const })),
@@ -141,20 +138,23 @@ export default function Page() {
   const proximoTurno = () => { if (timeline.length > 0) setTurnoIndex((prev) => (prev + 1) % timeline.length); };
   const ameacasFiltradas = ameacas.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()) || a.tipo.toLowerCase().includes(busca.toLowerCase()));
 
+  // Abre a janela do jogador em nova aba
+  const abrirModoJogador = () => {
+    window.open('/player', 'PlayerView', 'width=1280,height=720,menubar=no,toolbar=no');
+  };
+
   if (!isClient) return <div>Carregando...</div>;
   
   return (
     <div className="flex bg-gray-950 min-h-screen text-gray-100 font-sans overflow-x-hidden">
       
-      {/* CONTEÚDO PRINCIPAL (Sem margem direita fixa, o log é overlay) */}
-      <div className="flex-grow p-4 md:p-6 pb-20 w-full">
+      <div className={`flex-grow p-4 md:p-6 pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
         
         <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
         {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
         {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
         {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
         
-        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
             <h1 className="text-3xl font-black text-red-600">TORMENTA<span className="text-white font-light">MASTER</span></h1>
             
@@ -169,17 +169,20 @@ export default function Page() {
                   <label className="px-3 text-xs text-gray-400 hover:text-white cursor-pointer">⬆️ <input type="file" className="hidden" onChange={importar} /></label>
                </div>
                
-               <button onClick={() => setShowLog(!showLog)} className={`bg-gray-800 border px-3 py-2 rounded font-bold text-sm transition ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700'}`}>📜 Log</button>
+               {/* BOTÃO MODO TV */}
+               <button onClick={abrirModoJogador} className="bg-purple-900 hover:bg-purple-800 border border-purple-600 px-3 py-2 rounded font-bold text-sm flex items-center gap-2 shadow-lg shadow-purple-900/20 transition hover:scale-105" title="Abrir em nova janela para TV/Stream">
+                   📺 Modo TV
+               </button>
 
+               <button onClick={() => setShowLog(!showLog)} className={`bg-gray-800 border px-3 py-2 rounded font-bold text-sm transition ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700'}`}>📜 Log</button>
                <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold text-sm">📋 Importar</button>
-               <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova Ameaça</button>
+               <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova</button>
                <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 border-indigo-700 px-3 py-2 rounded font-bold text-sm">📚 Bestiário</button>
                <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 border-yellow-500 px-3 py-2 rounded font-bold text-sm">⚡ Iniciar</button>
                <button onClick={descansar} className="bg-green-900 border-green-700 px-3 py-2 rounded font-bold text-sm" title="Descanso">💤</button>
             </div>
         </header>
 
-        {/* TIMELINE */}
         <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
@@ -205,7 +208,6 @@ export default function Page() {
             </div>
         </section>
 
-        {/* CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {ameacasFiltradas.length === 0 && ameacas.length > 0 && <div className="col-span-full text-center py-10 text-gray-500">Sem resultados para "{busca}".</div>}
             {ameacasFiltradas.map(a => (
@@ -215,8 +217,6 @@ export default function Page() {
             ))}
         </div>
       </div>
-
-      {/* SIDEBAR LOG (Overlay deslizante) */}
       <DiceLog historico={historico} limpar={() => setHistorico([])} isOpen={showLog} onClose={() => setShowLog(false)} />
     </div>
   );

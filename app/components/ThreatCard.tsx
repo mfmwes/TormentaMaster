@@ -28,17 +28,13 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
   const removeAcao = (id: string) => onUpdate(ameaca.id, "acoes", ameaca.acoes.filter(a => a.id !== id));
 
   const rolarComContexto = (e: React.MouseEvent, expr: string, rotulo: string) => {
-      e.stopPropagation(); // Impede cliques acidentais
+      e.stopPropagation();
       e.preventDefault();
-
       let formula = expr.trim();
-      // Lógica inteligente: se for "+10" vira "1d20+10". Se for "10" (e for teste), vira "1d20+10".
-      if (rotulo.includes("Teste") || rotulo.includes("Atq")) {
+      if (rotulo.includes("Teste") || rotulo.includes("Atq") || rotulo.includes("Perícia")) {
           if (formula.startsWith('+') || formula.startsWith('-')) formula = `1d20${formula}`;
           else if (/^\d+$/.test(formula)) formula = `1d20+${formula}`;
       }
-      // Se for dano e for só número (ex: 5), mantemos 5 (rolarDados deve tratar ou falhar, mas geralmente dano tem dado)
-      
       onRoll(formula, ameaca.nome, rotulo);
   };
 
@@ -55,7 +51,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
         )}
 
         <div className="p-5 bg-gray-800/80 border-b border-gray-800 relative z-10 backdrop-blur-md">
-            {/* Badge Iniciativa */}
             <div className="absolute top-0 left-0 z-20">
                 {ameaca.iniciativaAtual !== undefined ? (
                     <div onClick={onRollIniciativa} className="bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-br-lg shadow-md cursor-pointer hover:bg-red-600 transition border-b border-r border-red-900 backdrop-blur-md flex flex-col items-center leading-none">
@@ -66,7 +61,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 )}
             </div>
 
-            {/* Controles */}
             <div className="absolute top-3 right-3 flex gap-2 bg-black/40 rounded-lg p-1.5 backdrop-blur-md opacity-100 md:opacity-0 group-hover/header:opacity-100 transition-opacity">
               <button onClick={() => setShowImgInput(!showImgInput)} className="text-gray-400 hover:text-blue-400 p-1" title="Imagem">🖼️</button>
               <button onClick={() => onSaveModel(ameaca)} className="text-gray-400 hover:text-yellow-400 p-1" title="Salvar">💾</button>
@@ -104,7 +98,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
             <span className="text-lg">🦶</span> <input className="bg-transparent flex-grow text-gray-300 focus:outline-none font-medium" value={ameaca.deslocamento || "9m"} onChange={(e) => onUpdate(ameaca.id, "deslocamento", e.target.value)} placeholder="Deslocamento" />
         </div>
 
-        {/* LISTA DE AÇÕES VISUAL (CORRIGIDA) */}
         <div>
           <div className="flex justify-between items-center mb-3 px-1">
             <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Ações & Habilidades</label>
@@ -114,8 +107,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
           <div className="flex flex-col gap-3">
             {ameaca.acoes.map((acao) => (
               <div key={acao.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden group/acao hover:border-gray-700 transition shadow-sm">
-                
-                {/* Linha 1: Título e Tipo */}
                 <div className="flex justify-between items-center bg-gray-950/50 p-2 border-b border-gray-800/50">
                     <div className="flex items-center gap-2 flex-grow">
                         <input className="font-bold text-sm text-red-200 bg-transparent focus:outline-none w-full placeholder-red-900/50" value={acao.nome} onChange={e => updateAcao(acao.id, 'nome', e.target.value)} placeholder="Nome da Ação" />
@@ -126,52 +117,25 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                     </div>
                 </div>
 
-                {/* Linha 2: Mecânica (Testes e Dano) - CENTRALIZADA E FUNCIONAL */}
                 <div className="flex gap-2 p-2 bg-gray-900/30">
-                    
-                    {/* Grupo Ataque */}
                     <div className="flex-1 relative h-8 bg-gray-950 border border-gray-800 rounded flex items-center">
                         <span className="absolute left-2 text-[10px] text-gray-500 font-bold pointer-events-none">ATQ</span>
-                        <input 
-                            className={`w-full h-full bg-transparent text-xs text-center font-bold px-8 focus:outline-none ${acao.teste ? 'text-yellow-400' : 'text-gray-600'}`} 
-                            value={acao.teste} onChange={e => updateAcao(acao.id, 'teste', e.target.value)} placeholder="+0" 
-                        />
+                        <input className={`w-full h-full bg-transparent text-xs text-center font-bold px-8 focus:outline-none ${acao.teste ? 'text-yellow-400' : 'text-gray-600'}`} value={acao.teste} onChange={e => updateAcao(acao.id, 'teste', e.target.value)} placeholder="+0" />
                         {acao.teste && (
-                            <button 
-                                type="button"
-                                onClick={(e) => rolarComContexto(e, acao.teste, `${acao.nome} (Teste)`)} 
-                                className="absolute right-0 top-0 h-full w-8 flex items-center justify-center bg-gray-900 hover:bg-yellow-600 text-yellow-500 hover:text-white transition border-l border-gray-800 z-10" 
-                                title="Rolar Ataque"
-                            >
-                                🎲
-                            </button>
+                            <button type="button" onClick={(e) => rolarComContexto(e, acao.teste, `${acao.nome} (Teste)`)} className="absolute right-0 top-0 h-full w-8 flex items-center justify-center bg-gray-900 hover:bg-yellow-600 text-yellow-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar Ataque">🎲</button>
                         )}
                     </div>
-
-                    {/* Grupo Dano */}
                     <div className="flex-[1.5] relative h-8 bg-gray-950 border border-gray-800 rounded flex items-center">
                         <span className="absolute left-2 text-[10px] text-gray-500 font-bold pointer-events-none">DANO</span>
-                        <input 
-                            className={`w-full h-full bg-transparent text-xs text-center font-bold px-8 focus:outline-none ${acao.dano ? 'text-red-400' : 'text-gray-600'}`} 
-                            value={acao.dano} onChange={e => updateAcao(acao.id, 'dano', e.target.value)} placeholder="-" 
-                        />
+                        <input className={`w-full h-full bg-transparent text-xs text-center font-bold px-8 focus:outline-none ${acao.dano ? 'text-red-400' : 'text-gray-600'}`} value={acao.dano} onChange={e => updateAcao(acao.id, 'dano', e.target.value)} placeholder="-" />
                         {acao.dano && (
-                            <button 
-                                type="button"
-                                onClick={(e) => rolarComContexto(e, acao.dano, `${acao.nome} (Dano)`)} 
-                                className="absolute right-0 top-0 h-full w-8 flex items-center justify-center bg-gray-900 hover:bg-red-600 text-red-500 hover:text-white transition border-l border-gray-800 z-10" 
-                                title="Rolar Dano"
-                            >
-                                🎲
-                            </button>
+                            <button type="button" onClick={(e) => rolarComContexto(e, acao.dano, `${acao.nome} (Dano)`)} className="absolute right-0 top-0 h-full w-8 flex items-center justify-center bg-gray-900 hover:bg-red-600 text-red-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar Dano">🎲</button>
                         )}
                     </div>
                 </div>
                 
-                {/* Linha 3: Descrição */}
                 <div className="px-2 pb-2">
-                    <textarea className="text-xs text-gray-400 bg-transparent resize-none focus:outline-none focus:text-gray-200 w-full min-h-[1.5em] leading-relaxed pl-1 border-l-2 border-gray-800 focus:border-gray-600" 
-                        value={acao.descricao} onChange={e => updateAcao(acao.id, 'descricao', e.target.value)} placeholder="Descrição do efeito..." rows={Math.max(1, Math.min(5, acao.descricao.split('\n').length))} />
+                    <textarea className="text-xs text-gray-400 bg-transparent resize-none focus:outline-none focus:text-gray-200 w-full min-h-[1.5em] leading-relaxed pl-1 border-l-2 border-gray-800 focus:border-gray-600" value={acao.descricao} onChange={e => updateAcao(acao.id, 'descricao', e.target.value)} placeholder="Descrição do efeito..." rows={Math.max(1, Math.min(5, acao.descricao.split('\n').length))} />
                 </div>
               </div>
             ))}
@@ -179,18 +143,31 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
           </div>
         </div>
 
+        {/* PERÍCIAS - Interface Nova e Melhorada */}
         <div>
-          <label className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 block">Perícias</label>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden group/pericias focus-within:border-blue-500 transition">
-             <div className="bg-gray-950/50 p-2 border-b border-gray-800/50 min-h-[30px]">
+          <div className="flex items-center gap-2 mb-2 px-1">
+             <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Perícias</span>
+             <div className="h-px bg-gray-800 flex-grow"></div>
+          </div>
+          
+          <div className="bg-gray-950 border border-gray-800 rounded-lg p-3 relative group/pericias hover:border-gray-700 transition">
+             {/* Área de Visualização Interativa */}
+             <div className="text-sm leading-relaxed text-gray-300 font-medium">
                 <DiceText texto={ameaca.pericias || ""} onRolar={(expr) => onRoll(expr, ameaca.nome, "Perícia")} />
              </div>
-             <textarea className="w-full bg-gray-900 p-3 text-sm text-gray-400 focus:outline-none h-20 resize-none" value={ameaca.pericias} onChange={(e) => onUpdate(ameaca.id, "pericias", e.target.value)} />
+             
+             {/* Área de Edição Discreta (Rodapé) */}
+             <textarea 
+                className="w-full bg-transparent text-xs text-gray-600 mt-3 pt-2 border-t border-gray-900 focus:text-gray-300 focus:border-gray-700 focus:outline-none transition-colors resize-none placeholder-gray-700" 
+                rows={1}
+                placeholder="Editar perícias (ex: Iniciativa +5, Furtividade +10)"
+                value={ameaca.pericias} 
+                onChange={(e) => onUpdate(ameaca.id, "pericias", e.target.value)} 
+             />
           </div>
         </div>
       </div>
 
-      {/* FOOTER: ATRIBUTOS (Sem balão azul) */}
       <div className="grid grid-cols-6 gap-px bg-gray-800 border-t border-gray-800">
          {['for', 'des', 'con', 'int', 'sab', 'car'].map(attr => {
              const valorStr = (ameaca.atributos as any)[attr];

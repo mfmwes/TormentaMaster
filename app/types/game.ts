@@ -7,20 +7,29 @@ export type Atributos = {
   car: string;
 };
 
+export type Acao = {
+  id: string;
+  nome: string;
+  tipo: string; // Ex: "Padrão", "Livre", "Passiva"
+  teste: string; // Ex: "+39", "CD 26"
+  dano: string;  // Ex: "4d10+28"
+  descricao: string;
+};
+
 export type Ameaca = {
   id: string;
   nome: string;
-  nd: string;             // NOVO: ND 15
-  tipo: string;           // NOVO: Construto Enorme
-  deslocamento: string;   // NOVO: 9m (6q)
+  nd: string;
+  tipo: string;           // Ex: "Construto Enorme"
+  deslocamento: string;
   defesa: number;
   pvAtual: number;
   pvMax: number;
   pmAtual: number;
   pmMax: number;
-  ataques: string;        // Ataques e Habilidades juntos
+  acoes: Acao[];          // <--- MUDANÇA PRINCIPAL: Lista estruturada
   pericias: string;
-  atributos: Atributos;   // NOVO: Objeto com os 6 atributos
+  atributos: Atributos;
   iniciativaAtual?: number;
   condicoes: string[];
   imagemUrl?: string;

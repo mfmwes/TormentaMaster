@@ -37,7 +37,6 @@ export default function MesaPage() {
   // ---------------------------------------------------------
   // 2. ESTADOS DA UI
   // ---------------------------------------------------------
-  // Autenticação
   const [isMaster, setIsMaster] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -51,7 +50,7 @@ export default function MesaPage() {
   // Bestiário (Local Storage apenas)
   const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]); 
 
-  // Modais e Toggles do Mestre
+  // UI Toggles
   const [modalResultado, setModalResultado] = useState<any | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
   const [mostrarBestiario, setMostrarBestiario] = useState(false);
@@ -68,7 +67,6 @@ export default function MesaPage() {
   // 3. SINCRONIZAÇÃO E SEGURANÇA
   // ---------------------------------------------------------
 
-  // Recebe atualizações da Nuvem
   useEffect(() => {
     if (dadosRemotos?.dados) {
       setAmeacas(dadosRemotos.dados.ameacas || []);
@@ -81,13 +79,12 @@ export default function MesaPage() {
       if (dadosRemotos.dados.mapaUrl && isMaster && !showMap) setShowMap(true);
     }
 
-    // Verifica se precisa criar senha (primeiro acesso da sala)
+    // Verifica se precisa criar senha (primeiro acesso)
     if (dadosRemotos && !dadosRemotos.senha && !isMaster && !showLoginModal) {
        setShowLoginModal(true);
     }
   }, [dadosRemotos, isMaster]);
 
-  // Carrega Bestiário Local
   useEffect(() => {
     const best = localStorage.getItem("t20-bestiario-v3");
     if (best) setBestiario(JSON.parse(best));
@@ -96,15 +93,16 @@ export default function MesaPage() {
     if (bestiario.length > 0) localStorage.setItem("t20-bestiario-v3", JSON.stringify(bestiario)); 
   }, [bestiario]);
 
-  // Função de Login
   const tentarLogin = async (senhaDigitada: string) => {
-    if (!dadosRemotos?.senha) {
-        // Cria a senha
+    if (!dadosRemotos) return;
+    
+    const temSenha = (dadosRemotos as any).senha; 
+
+    if (!temSenha) {
         await definirSenhaRemoto({ codigo: salaId, senha: senhaDigitada });
         setIsMaster(true);
         setShowLoginModal(false);
     } else {
-        // Verifica a senha
         const valido = await verificarSenhaRemoto({ codigo: salaId, tentativa: senhaDigitada });
         if (valido) {
             setIsMaster(true);
@@ -115,7 +113,6 @@ export default function MesaPage() {
     }
   };
 
-  // Função Central de Salvamento
   const salvarGlobal = (partial: { 
     ameacas?: Ameaca[], 
     jogadores?: Jogador[], 
@@ -123,14 +120,12 @@ export default function MesaPage() {
     turnoIndex?: number, 
     mapaUrl?: string 
   }) => {
-    // Atualiza local (UI instantânea)
     if (partial.ameacas) setAmeacas(partial.ameacas);
     if (partial.jogadores) setJogadores(partial.jogadores);
     if (partial.historico) setHistorico(partial.historico);
     if (partial.turnoIndex !== undefined) setTurnoIndex(partial.turnoIndex);
     if (partial.mapaUrl !== undefined) setMapaUrl(partial.mapaUrl);
 
-    // Envia para Nuvem
     salvarRemoto({
       codigo: salaId,
       dados: {
@@ -144,7 +139,7 @@ export default function MesaPage() {
   };
 
   // ---------------------------------------------------------
-  // 4. LÓGICA DE JOGO (MESTRE)
+  // 4. LÓGICA DE JOGO (MÉTODOS)
   // ---------------------------------------------------------
 
   const rolar = (expr: string, origem = "Sistema", rotulo = "Rolagem") => {
@@ -209,7 +204,6 @@ export default function MesaPage() {
     salvarGlobal({ ameacas: novas, turnoIndex: 0, historico: [...historico.slice(-49), { id: crypto.randomUUID(), hora: new Date().toLocaleTimeString(), origem: "Mestre", rotulo: "Iniciativa em Massa", resultado: "Rolado", detalhes: "Todos", critico: false }] });
   };
 
-  // Mapa e Jogadores
   const moverToken = (id: string, tipo: "AMEACA" | "JOGADOR", x: number, y: number) => {
     if (tipo === "AMEACA") salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, x, y } : a) });
     else salvarGlobal({ jogadores: jogadores.map(j => j.id === id ? { ...j, x, y } : j) });
@@ -231,7 +225,6 @@ export default function MesaPage() {
   const ameacasFiltradas = ameacas.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()) || a.tipo.toLowerCase().includes(busca.toLowerCase()));
   const tokensMap = [...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })), ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))];
 
-  // Bestiário e Import
   const salvarModelo = (a: Ameaca) => {
     const modelo: ModeloAmeaca = { ...a, pvPadrao: a.pvMax, pmPadrao: a.pmMax };
     setBestiario(prev => [...prev.filter(b => b.nome !== a.nome), modelo]);
@@ -254,17 +247,30 @@ export default function MesaPage() {
   };
 
   // ---------------------------------------------------------
-  // 5. RENDERIZAÇÃO CONDICIONAL
+  // 5. RENDERIZAÇÃO
   // ---------------------------------------------------------
 
-  if (dadosRemotos === undefined) return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
-
-  // A) Modal de Login/Criação
-  if (showLoginModal) {
-      return <ModalLoginMestre ehPrimeiroAcesso={!dadosRemotos.senha} onConfirmar={tentarLogin} />;
+  // 1. Loading
+  if (dadosRemotos === undefined) {
+    return <div className="h-screen bg-gray-950 flex items-center justify-center text-white animate-pulse">Carregando Masmorra...</div>;
   }
 
-  // B) Visão do Jogador (Não Mestre)
+  // 2. Não Encontrado (404)
+  if (dadosRemotos === null) {
+    return (
+        <div className="h-screen bg-gray-950 flex flex-col items-center justify-center text-white">
+            <h1 className="text-4xl font-bold mb-4">🚫 404</h1>
+            <p className="text-gray-400">Esta sala não existe.</p>
+        </div>
+    );
+  }
+
+  // A) Modal de Login
+  if (showLoginModal) {
+      return <ModalLoginMestre ehPrimeiroAcesso={!(dadosRemotos as any).senha} onConfirmar={tentarLogin} />;
+  }
+
+  // B) Visão do Jogador
   if (!isMaster) {
       return (
           <div className="relative w-full h-full">
@@ -274,25 +280,24 @@ export default function MesaPage() {
                 ameacas={ameacas} 
                 jogadores={jogadores} 
                 turnoIndex={turnoIndex} 
-                mapaUrl={mapaUrl} 
-                historico={historico} // <--- Passando o histórico aqui
+                mapaUrl={mapaUrl}
+                historico={historico}
               />
           </div>
       );
   }
 
-  // C) Visão do Mestre (Dashboard Completa)
+  // C) Dashboard Mestre
   return (
     <div className="flex bg-gray-950 min-h-screen text-gray-100 font-sans overflow-x-hidden">
       <div className={`flex-grow p-4 md:p-6 pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
         
-        {/* Modais */}
         <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
         {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
         {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
         {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
         
-        {/* Header Mestre */}
+        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
             <h1 className="text-3xl font-black text-red-600 flex items-center gap-2">
                 TORMENTA<span className="text-white font-light">MASTER</span> 
@@ -321,7 +326,7 @@ export default function MesaPage() {
             </div>
         </header>
 
-        {/* Mapa */}
+        {/* MAPA */}
         {showMap && (
             <div className="mb-8 w-full aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-700 relative shadow-2xl animate-in fade-in slide-in-from-top-4">
                 <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} onMoveToken={moverToken} />
@@ -329,7 +334,7 @@ export default function MesaPage() {
             </div>
         )}
 
-        {/* Timeline */}
+        {/* TIMELINE */}
         <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
@@ -355,7 +360,7 @@ export default function MesaPage() {
             </div>
         </section>
 
-        {/* Cards */}
+        {/* CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {ameacasFiltradas.length === 0 && ameacas.length > 0 && <div className="col-span-full text-center py-10 text-gray-500">Sem resultados para "{busca}".</div>}
             {ameacasFiltradas.map(a => (

@@ -12,17 +12,24 @@ export default function Page() {
   const [ameacas, setAmeacas] = useState<Ameaca[]>([]);
   const [jogadores, setJogadores] = useState<Jogador[]>([]);
   const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]);
+  
+  // UI State
   const [modalResultado, setModalResultado] = useState<ResultadoRolagem | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
   const [mostrarBestiario, setMostrarBestiario] = useState(false);
   const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  
+  // New UI States (Escala)
+  const [busca, setBusca] = useState("");
+  const [turnoIndex, setTurnoIndex] = useState(-1); // -1 = combate não começou ou ninguém selecionado
+
+  // Inputs temporários
   const [novoNomeJog, setNovoNomeJog] = useState("");
   const [novoInicJog, setNovoInicJog] = useState("");
 
   useEffect(() => {
     setIsClient(true);
-    // Nota: Mudamos a versão para v5 para limpar dados antigos incompatíveis (ataques string -> acoes array)
     const mesa = localStorage.getItem("t20-master-screen-v5"); 
     if (mesa) { const p = JSON.parse(mesa); setAmeacas(p.ameacas||[]); setJogadores(p.jogadores||[]); }
     const best = localStorage.getItem("t20-bestiario-v3");
@@ -39,12 +46,18 @@ export default function Page() {
     return Math.floor(Math.random() * 20) + 1 + (match ? parseInt(match[1]) : 0);
   };
   const rolarIniciativaIndividual = (id: string) => setAmeacas(prev => prev.map(a => a.id !== id ? a : { ...a, iniciativaAtual: calcularIniciativa(a.pericias) }));
-  const rolarIniciativaGlobal = () => setAmeacas(prev => prev.map(a => ({ ...a, iniciativaAtual: calcularIniciativa(a.pericias) })));
+  
+  const rolarIniciativaGlobal = () => {
+    setAmeacas(prev => prev.map(a => ({ ...a, iniciativaAtual: calcularIniciativa(a.pericias) })));
+    setTurnoIndex(0); // Reseta o turno para o primeiro
+  };
+
   const updateAmeaca = (id: string, campo: keyof Ameaca, valor: any) => setAmeacas(prev => prev.map(a => a.id === id ? { ...a, [campo]: valor } : a));
   const removeAmeaca = (id: string) => setAmeacas(prev => prev.filter(a => a.id !== id));
   const cloneAmeaca = (original: Ameaca) => setAmeacas([...ameacas, { ...original, id: crypto.randomUUID(), nome: `${original.nome} (Cópia)`, iniciativaAtual: undefined }]);
   const toggleCondicao = (id: string, cond: string) => setAmeacas(prev => prev.map(a => a.id !== id ? a : { ...a, condicoes: a.condicoes.includes(cond) ? a.condicoes.filter(c => c !== cond) : [...a.condicoes, cond] }));
-  const descansar = () => { if(confirm("Resetar PV/PM e Condições de todos?")) setAmeacas(prev => prev.map(a => ({...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: []}))); };
+  
+  const descansar = () => { if(confirm("Resetar PV/PM e Condições de todos?")) { setAmeacas(prev => prev.map(a => ({...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: []}))); setTurnoIndex(-1); }};
 
   const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
   
@@ -99,15 +112,45 @@ export default function Page() {
     ...jogadores.map(j => ({ id: j.id, nome: j.nome, iniciativa: j.iniciativa, tipo: "JOGADOR" as const }))
   ].sort((a, b) => b.iniciativa - a.iniciativa);
 
+  // Lógica de Avançar Turno
+  const proximoTurno = () => {
+      if (timeline.length === 0) return;
+      setTurnoIndex((prev) => (prev + 1) % timeline.length);
+  };
+
+  // Filtragem dos Cards
+  const ameacasFiltradas = ameacas.filter(a => 
+    a.nome.toLowerCase().includes(busca.toLowerCase()) || 
+    a.tipo.toLowerCase().includes(busca.toLowerCase())
+  );
+
   if (!isClient) return <div>Carregando...</div>;
+  
   return (
     <div className="p-4 md:p-6 bg-gray-950 min-h-screen text-gray-100 font-sans pb-20">
       <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
       {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
       {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
       {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
+      
+      {/* HEADER */}
       <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
         <h1 className="text-3xl font-black text-red-600">TORMENTA<span className="text-white font-light">MASTER</span></h1>
+        
+        {/* Barra de Busca no Header */}
+        <div className="relative w-full max-w-md mx-4">
+            <input 
+                type="text" 
+                placeholder="🔍 Buscar ameaça..." 
+                className="w-full bg-gray-900 border border-gray-700 rounded-full py-2 px-4 text-sm focus:outline-none focus:border-red-500 focus:bg-gray-800 transition"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+            />
+            {busca && (
+                <button onClick={() => setBusca("")} className="absolute right-3 top-2 text-gray-500 hover:text-white">✕</button>
+            )}
+        </div>
+
         <div className="flex gap-2 items-center flex-wrap justify-center">
            <div className="flex mr-2 bg-gray-900 rounded p-1 border border-gray-800">
               <button onClick={exportar} className="px-3 text-xs text-gray-400 hover:text-white border-r border-gray-700">⬇️</button>
@@ -116,30 +159,81 @@ export default function Page() {
            <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold transition flex items-center gap-2">📋 Importar</button>
            <button onClick={addAmeaca} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold transition">+ Nova Ameaça</button>
            <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 hover:bg-indigo-800 border border-indigo-700 px-3 py-2 rounded font-bold transition">📚 Bestiário</button>
-           <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 hover:bg-yellow-700 border border-yellow-500 px-3 py-2 rounded font-bold transition">⚡ Iniciar</button>
            <button onClick={descansar} className="bg-green-900 hover:bg-green-800 border border-green-700 px-3 py-2 rounded font-bold transition" title="Descanso">💤</button>
         </div>
       </header>
-      <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4">
-         <h2 className="text-gray-400 text-xs font-bold uppercase mb-2">Ordem de Turno</h2>
-         {timeline.map((item, idx) => (
-             <div key={`${item.tipo}-${item.id}`} className={`flex items-center gap-3 p-2 mb-1 border-l-4 rounded bg-opacity-20 ${item.tipo === 'AMEACA' ? 'border-red-600 bg-gray-800' : 'border-blue-500 bg-blue-900'}`}>
-                 <span className="text-gray-500 font-mono w-6 font-bold">#{idx+1}</span>
-                 <input type="number" className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700" value={item.iniciativa} onChange={(e) => { if(item.tipo === 'AMEACA') updateAmeaca(item.id, 'iniciativaAtual', Number(e.target.value)); else setJogadores(prev => prev.map(j => j.id === item.id ? {...j, iniciativa: Number(e.target.value)} : j)) }} />
-                 <span className={`flex-grow font-bold ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'}`}>{item.nome}</span>
-                 {item.tipo === 'JOGADOR' && <button onClick={() => setJogadores(prev => prev.filter(j => j.id !== item.id))} className="text-gray-500 hover:text-red-500 font-bold px-2">✕</button>}
+
+      {/* TIMELINE DE TURNO */}
+      <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
+         <div className="flex justify-between items-center mb-3">
+             <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
+             <div className="flex gap-2">
+                 <button onClick={rolarIniciativaGlobal} className="text-xs bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded font-bold transition">⚡ Rolar Todos</button>
+                 <button onClick={proximoTurno} className="text-xs bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded font-bold transition flex items-center gap-1">
+                     ▶ Próximo Turno
+                 </button>
              </div>
-         ))}
+         </div>
+         
+         <div className="flex flex-col gap-1 max-h-60 overflow-y-auto pr-1">
+            {timeline.length === 0 ? <p className="text-gray-600 italic text-sm text-center py-2">Combate não iniciado.</p> : null}
+            {timeline.map((item, idx) => {
+                const isTurnoAtual = idx === turnoIndex;
+                return (
+                    <div key={`${item.tipo}-${item.id}`} 
+                        className={`flex items-center gap-3 p-2 border-l-4 rounded transition-all duration-300 ${
+                            isTurnoAtual 
+                            ? 'bg-gray-700 border-yellow-400 shadow-lg scale-[1.01]' 
+                            : 'bg-opacity-20 border-transparent ' + (item.tipo === 'AMEACA' ? 'bg-gray-800 border-l-red-800' : 'bg-blue-900 border-l-blue-800')
+                        }`}
+                        onClick={() => setTurnoIndex(idx)} // Permite clicar para pular para este turno
+                    >
+                        <span className={`font-mono w-6 font-bold text-center ${isTurnoAtual ? 'text-yellow-400' : 'text-gray-500'}`}>
+                            {isTurnoAtual ? '▶' : `#${idx+1}`}
+                        </span>
+                        <input type="number" className="w-10 bg-gray-950 text-center rounded text-white font-bold border border-gray-700 text-sm" value={item.iniciativa} onChange={(e) => { if(item.tipo === 'AMEACA') updateAmeaca(item.id, 'iniciativaAtual', Number(e.target.value)); else setJogadores(prev => prev.map(j => j.id === item.id ? {...j, iniciativa: Number(e.target.value)} : j)) }} />
+                        <span className={`flex-grow font-bold text-sm ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'} ${isTurnoAtual ? 'text-white' : ''}`}>{item.nome}</span>
+                        {item.tipo === 'JOGADOR' && <button onClick={() => setJogadores(prev => prev.filter(j => j.id !== item.id))} className="text-gray-500 hover:text-red-500 font-bold px-2 text-xs">✕</button>}
+                    </div>
+                );
+            })}
+         </div>
+
+         {/* Adicionar Jogador Rápido */}
          <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800">
-            <input placeholder="Nome Jogador" className="bg-gray-950 p-1 rounded text-white border border-gray-700 text-sm flex-grow" value={novoNomeJog} onChange={e => setNovoNomeJog(e.target.value)} />
-            <input type="number" placeholder="Inic" className="bg-gray-950 p-1 rounded text-white border border-gray-700 text-sm w-16 text-center" value={novoInicJog} onChange={e => setNovoInicJog(e.target.value)} />
-            <button onClick={() => { if(novoNomeJog) { setJogadores([...jogadores, {id: crypto.randomUUID(), nome: novoNomeJog, iniciativa: Number(novoInicJog)}]); setNovoNomeJog(""); }}} className="bg-blue-700 hover:bg-blue-600 px-3 rounded font-bold text-sm">ADD</button>
+            <input placeholder="Nome Jogador" className="bg-gray-950 p-1.5 rounded text-white border border-gray-700 text-xs flex-grow focus:border-blue-500 focus:outline-none" value={novoNomeJog} onChange={e => setNovoNomeJog(e.target.value)} onKeyDown={e => e.key === 'Enter' && setNovoNomeJog((e.target as any).value) } />
+            <input type="number" placeholder="Inic" className="bg-gray-950 p-1.5 rounded text-white border border-gray-700 text-xs w-14 text-center focus:border-blue-500 focus:outline-none" value={novoInicJog} onChange={e => setNovoInicJog(e.target.value)} />
+            <button onClick={() => { if(novoNomeJog) { setJogadores([...jogadores, {id: crypto.randomUUID(), nome: novoNomeJog, iniciativa: Number(novoInicJog)}]); setNovoNomeJog(""); }}} className="bg-blue-700 hover:bg-blue-600 px-3 rounded font-bold text-xs transition">ADD</button>
          </div>
       </section>
+
+      {/* GRID DE CARDS FILTRADO */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {ameacas.map(a => (
-          <ThreatCard key={a.id} ameaca={a} onUpdate={updateAmeaca} onDelete={removeAmeaca} onClone={cloneAmeaca} onSaveModel={salvarModelo} onToggleCondition={() => setModalCondicaoId(a.id)} onRoll={rolar} onRollIniciativa={() => rolarIniciativaIndividual(a.id)} />
-        ))}
+        {ameacasFiltradas.length === 0 && ameacas.length > 0 && (
+            <div className="col-span-full text-center py-10 text-gray-500">
+                Nenhuma ameaça encontrada para "{busca}".
+            </div>
+        )}
+        
+        {ameacasFiltradas.map(a => {
+            // Verifica se é o turno desta ameaça para destacar o card
+            const isTurno = timeline[turnoIndex]?.id === a.id;
+            
+            return (
+                <div key={a.id} className={`transition-all duration-500 ${isTurno ? 'ring-2 ring-yellow-400 shadow-2xl shadow-yellow-900/20 scale-[1.02] z-10' : ''}`}>
+                    <ThreatCard 
+                        ameaca={a} 
+                        onUpdate={updateAmeaca} 
+                        onDelete={removeAmeaca} 
+                        onClone={cloneAmeaca} 
+                        onSaveModel={salvarModelo} 
+                        onToggleCondition={() => setModalCondicaoId(a.id)}
+                        onRoll={rolar}
+                        onRollIniciativa={() => rolarIniciativaIndividual(a.id)}
+                    />
+                </div>
+            );
+        })}
       </div>
     </div>
   );

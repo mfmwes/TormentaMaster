@@ -28,16 +28,13 @@ export default function PlayerView() {
     return () => { window.removeEventListener("storage", handleStorage); clearInterval(interval); };
   }, []);
 
-  // --- FUNÇÃO PARA REDIMENSIONAR LOCALMENTE ---
   const handleResizeToken = (id: string, tipo: string, novoTamanho: number) => {
-    // 1. Atualiza visualmente
     if (tipo === "AMEACA") {
         setAmeacas(prev => prev.map(a => a.id === id ? { ...a, tamanho: novoTamanho } : a));
     } else {
         setJogadores(prev => prev.map(j => j.id === id ? { ...j, tamanho: novoTamanho } : j));
     }
 
-    // 2. Salva no LocalStorage
     const mesa = localStorage.getItem("t20-master-screen-v7");
     if (mesa) {
         const p = JSON.parse(mesa);
@@ -50,7 +47,6 @@ export default function PlayerView() {
     }
   };
 
-  // --- FUNÇÃO PARA MOVER LOCALMENTE (NECESSÁRIA PARA O BUILD) ---
   const handleMoveToken = (id: string, tipo: string, x: number, y: number) => {
     if (tipo === "AMEACA") {
         setAmeacas(prev => prev.map(a => a.id === id ? { ...a, x, y } : a));
@@ -76,26 +72,25 @@ export default function PlayerView() {
   ].sort((a, b) => b.iniciativa - a.iniciativa);
 
   const ativo = timeline[turnoIndex];
-  const dadosAtivo = ativo?.tipo === 'AMEACA' ? ameacas.find(a => a.id === ativo.id) : null;
+  
+  const dadosAtivo = ativo?.tipo === 'AMEACA' 
+    ? ameacas.find(a => a.id === ativo.id) 
+    : jogadores.find(j => j.id === ativo.id);
 
   const tokensMap = [
       ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, tamanho: a.tamanho, imagemUrl: a.imagemUrl })),
       ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50, tamanho: j.tamanho, imagemUrl: j.imagemUrl }))
   ];
 
-  // ==========================================
-  // MODO MAPA (Se houver URL de mapa)
-  // ==========================================
   if (mapaUrl) {
       return (
           <div className="h-screen w-screen bg-gray-950 overflow-hidden flex flex-col font-sans">
-              <div className="flex-grow relative">
+              <div className="flex-grow relative overflow-hidden">
                   <BattleMap 
                     mapaUrl={mapaUrl} 
                     tokens={tokensMap} 
-                    // CORREÇÃO AQUI: Passando as props obrigatórias que faltavam
                     isGm={false}
-                    readonly={false} // Liberado para interagir (Zoom/Pan/Resize)
+                    readonly={false}
                     onMoveToken={handleMoveToken}
                     onResizeToken={handleResizeToken}
                   />
@@ -103,7 +98,7 @@ export default function PlayerView() {
                   {ativo && (
                       <div className="absolute top-4 right-4 bg-gray-900/90 border border-yellow-500 p-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-md animate-in slide-in-from-right z-50">
                           <div className="relative">
-                            {dadosAtivo?.imagemUrl ? <img src={dadosAtivo.imagemUrl} className="w-14 h-14 rounded-full border-2 border-white object-cover" /> : <div className="w-14 h-14 bg-gray-800 rounded-full border border-gray-600 flex items-center justify-center">👾</div>}
+                            {dadosAtivo?.imagemUrl ? <img src={dadosAtivo.imagemUrl} className="w-14 h-14 rounded-full border-2 border-white object-cover" /> : <div className="w-14 h-14 bg-gray-800 rounded-full border border-gray-600 flex items-center justify-center text-xl">{ativo.tipo === 'AMEACA' ? '👾' : '🛡️'}</div>}
                             <div className="absolute -bottom-2 -right-2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded border border-gray-700">{ativo.iniciativa}</div>
                           </div>
                           <div>
@@ -114,14 +109,28 @@ export default function PlayerView() {
                   )}
               </div>
               
-              <div className="h-24 bg-gray-900 border-t border-gray-800 p-2">
-                  <div className="flex gap-2 overflow-x-auto h-full items-center px-4">
+              {/* TIMELINE INFERIOR (CORRIGIDO: ALTURA AUMENTADA PARA h-48) */}
+              <div className="h-48 bg-gray-900/95 backdrop-blur-md border-t border-gray-800 p-2 relative z-40 flex items-center overflow-hidden">
+                  <div className="flex gap-4 overflow-x-auto overflow-y-hidden h-full items-center px-4 scrollbar-hide w-full">
                       {timeline.map((item, idx) => {
                           const isCurrent = idx === turnoIndex;
+                          const dadosItem = item.tipo === 'AMEACA' 
+                            ? ameacas.find(a => a.id === item.id) 
+                            : jogadores.find(j => j.id === item.id);
+
                           return (
-                              <div key={item.id} className={`flex-shrink-0 p-2 rounded-lg border transition-all duration-300 ${isCurrent ? 'bg-yellow-900/40 border-yellow-500 scale-105' : 'bg-gray-800 border-gray-700 opacity-60'} w-28 flex flex-col justify-between h-16`}>
-                                  <div className="font-bold text-white truncate text-xs">{item.nome}</div>
-                                  <div className="text-[10px] text-gray-400 font-mono text-right">{item.iniciativa}</div>
+                              <div key={item.id} className={`flex-shrink-0 w-32 h-32 p-2 rounded-xl border transition-all duration-300 flex flex-col justify-between items-center ${isCurrent ? 'bg-yellow-900/40 border-yellow-500 scale-105 shadow-lg' : 'bg-gray-800 border-gray-700 opacity-60'}`}>
+                                  <div className="font-bold text-white text-xs text-center w-full truncate" title={item.nome}>{item.nome}</div>
+                                  
+                                  <div className="flex items-center justify-center">
+                                     {dadosItem?.imagemUrl ? (
+                                        <img src={dadosItem.imagemUrl} className="w-12 h-12 rounded-full object-cover border-2 border-gray-600 bg-black" />
+                                     ) : (
+                                        <span className="text-4xl">{item.tipo === 'AMEACA' ? '👾' : '🛡️'}</span>
+                                     )}
+                                  </div>
+
+                                  <div className="text-[10px] text-gray-400 font-mono text-center bg-black/40 rounded px-2 py-0.5 w-full">Inic: {item.iniciativa}</div>
                               </div>
                           )
                       })}
@@ -131,9 +140,6 @@ export default function PlayerView() {
       );
   }
 
-  // ==========================================
-  // MODO CINEMÁTICO (Sem mapa)
-  // ==========================================
   if (timeline.length === 0) {
     return <div className="h-screen bg-black flex items-center justify-center text-gray-500 font-bold tracking-widest uppercase">Aguardando Combate...</div>;
   }
@@ -175,31 +181,33 @@ export default function PlayerView() {
          )}
       </div>
 
-      <div className="relative z-20 bg-gray-900/80 backdrop-blur-md border-t border-gray-800 p-4 pb-8">
-          <div className="max-w-[90%] mx-auto">
-              <h3 className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-4 ml-2">Ordem de Iniciativa</h3>
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                  {timeline.map((item, idx) => {
-                      const isCurrent = idx === turnoIndex;
-                      const isPast = turnoIndex > -1 && idx < turnoIndex;
-                      
-                      return (
-                          <div key={`${item.tipo}-${item.id}`} className={`flex-shrink-0 w-48 p-3 rounded-xl border transition-all duration-500 snap-center ${
-                              isCurrent 
-                              ? 'bg-red-900/40 border-red-500 shadow-lg shadow-red-900/20 scale-105' 
-                              : isPast 
-                                ? 'bg-gray-900 border-gray-800 opacity-50 grayscale'
-                                : 'bg-gray-800 border-gray-700'
-                          }`}>
-                              <div className="flex justify-between items-start mb-2">
-                                  <span className={`font-bold text-2xl ${isCurrent ? 'text-white' : 'text-gray-500'}`}>{item.iniciativa}</span>
-                                  {item.tipo === 'AMEACA' && <span className="text-[10px] bg-red-950 text-red-400 px-1.5 py-0.5 rounded border border-red-900">INIMIGO</span>}
-                              </div>
-                              <div className={`font-bold truncate ${isCurrent ? 'text-white text-lg' : 'text-gray-400'}`}>{item.nome}</div>
+      {/* TIMELINE INFERIOR (CORRIGIDO: ALTURA AUMENTADA PARA h-48) */}
+      <div className="h-48 bg-gray-900/80 backdrop-blur-md border-t border-gray-800 p-2 relative z-40 flex items-center overflow-hidden">
+          <div className="flex gap-4 overflow-x-auto overflow-y-hidden h-full items-center px-4 scrollbar-hide w-full">
+              {timeline.map((item, idx) => {
+                  const isCurrent = idx === turnoIndex;
+                  const dadosItem = item.tipo === 'AMEACA' 
+                    ? ameacas.find(a => a.id === item.id) 
+                    : jogadores.find(j => j.id === item.id);
+
+                  return (
+                      <div key={`${item.tipo}-${item.id}`} className={`flex-shrink-0 w-32 h-32 p-2 rounded-xl border transition-all duration-300 flex flex-col justify-between items-center ${isCurrent 
+                          ? 'bg-red-900/40 border-red-500 shadow-lg scale-105' 
+                          : 'bg-gray-800 border-gray-700 opacity-60'
+                      }`}>
+                          <div className="font-bold text-white text-xs text-center w-full truncate" title={item.nome}>{item.nome}</div>
+                          
+                          <div className="flex items-center justify-center">
+                             {dadosItem?.imagemUrl ? (
+                                <img src={dadosItem.imagemUrl} className="w-12 h-12 rounded-full object-cover border-2 border-gray-600 bg-black" />
+                             ) : (
+                                <span className="text-4xl">{item.tipo === 'AMEACA' ? '👾' : '🛡️'}</span>
+                             )}
                           </div>
-                      );
-                  })}
-              </div>
+                          <div className="text-[10px] text-gray-400 font-mono text-center bg-black/40 rounded px-2 py-0.5 w-full">Inic: {item.iniciativa}</div>
+                      </div>
+                  );
+              })}
           </div>
       </div>
     </div>

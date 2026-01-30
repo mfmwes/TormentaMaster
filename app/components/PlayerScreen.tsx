@@ -23,9 +23,12 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
 
   const ativo = timeline[turnoIndex];
   
-  const dadosAtivo = ativo?.tipo === 'AMEACA' 
-    ? ameacas.find(a => a.id === ativo.id) 
-    : jogadores.find(j => j.id === ativo.id);
+  // CORREÇÃO: Verifica se 'ativo' existe antes de buscar
+  const dadosAtivo = ativo 
+    ? (ativo.tipo === 'AMEACA' 
+        ? ameacas.find(a => a.id === ativo.id) 
+        : jogadores.find(j => j.id === ativo.id))
+    : null;
 
   const tokensMap = [
       ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, tamanho: a.tamanho, imagemUrl: a.imagemUrl })),
@@ -111,7 +114,6 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
         )}
       </div>
 
-      {/* TIMELINE INFERIOR (CORRIGIDO: ALTURA AUMENTADA PARA h-48) */}
       <div className="h-48 bg-gray-900/95 backdrop-blur-md border-t border-gray-800 p-2 relative z-40 flex items-center overflow-hidden">
           <div className="flex gap-4 overflow-x-auto overflow-y-hidden h-full items-center px-4 scrollbar-hide w-full">
               {timeline.map((item, idx) => {
@@ -123,12 +125,10 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                   return (
                       <div key={`${item.tipo}-${item.id}`} className={`flex-shrink-0 w-32 h-32 p-2 rounded-xl border transition-all duration-300 flex flex-col justify-between items-center ${isCurrent ? 'bg-yellow-900/40 border-yellow-500 scale-105 shadow-lg' : 'bg-gray-800 border-gray-700 opacity-60'}`}>
                           
-                          {/* NOME */}
                           <div className="font-bold text-white text-xs text-center w-full truncate" title={item.nome}>
                               {item.nome}
                           </div>
                           
-                          {/* IMAGEM */}
                           <div className="flex items-center justify-center">
                              {dadosItem?.imagemUrl ? (
                                 <img src={dadosItem.imagemUrl} className="w-12 h-12 rounded-full object-cover border-2 border-gray-600 bg-black" alt="" />
@@ -137,7 +137,6 @@ export const PlayerScreen = ({ ameacas, jogadores, turnoIndex, mapaUrl, historic
                              )}
                           </div>
                           
-                          {/* INICIATIVA */}
                           <div className="text-[10px] text-gray-400 font-mono text-center bg-black/40 rounded px-2 py-0.5 w-full">
                               Inic: {item.iniciativa}
                           </div>

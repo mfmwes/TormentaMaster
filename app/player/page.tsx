@@ -28,6 +28,48 @@ export default function PlayerView() {
     return () => { window.removeEventListener("storage", handleStorage); clearInterval(interval); };
   }, []);
 
+  // --- FUNÇÃO PARA REDIMENSIONAR LOCALMENTE ---
+  const handleResizeToken = (id: string, tipo: string, novoTamanho: number) => {
+    // 1. Atualiza visualmente
+    if (tipo === "AMEACA") {
+        setAmeacas(prev => prev.map(a => a.id === id ? { ...a, tamanho: novoTamanho } : a));
+    } else {
+        setJogadores(prev => prev.map(j => j.id === id ? { ...j, tamanho: novoTamanho } : j));
+    }
+
+    // 2. Salva no LocalStorage
+    const mesa = localStorage.getItem("t20-master-screen-v7");
+    if (mesa) {
+        const p = JSON.parse(mesa);
+        if (tipo === "AMEACA") {
+            p.ameacas = (p.ameacas || []).map((a: any) => a.id === id ? { ...a, tamanho: novoTamanho } : a);
+        } else {
+            p.jogadores = (p.jogadores || []).map((j: any) => j.id === id ? { ...j, tamanho: novoTamanho } : j);
+        }
+        localStorage.setItem("t20-master-screen-v7", JSON.stringify(p));
+    }
+  };
+
+  // --- FUNÇÃO PARA MOVER LOCALMENTE (NECESSÁRIA PARA O BUILD) ---
+  const handleMoveToken = (id: string, tipo: string, x: number, y: number) => {
+    if (tipo === "AMEACA") {
+        setAmeacas(prev => prev.map(a => a.id === id ? { ...a, x, y } : a));
+    } else {
+        setJogadores(prev => prev.map(j => j.id === id ? { ...j, x, y } : j));
+    }
+
+    const mesa = localStorage.getItem("t20-master-screen-v7");
+    if (mesa) {
+        const p = JSON.parse(mesa);
+        if (tipo === "AMEACA") {
+            p.ameacas = (p.ameacas || []).map((a: any) => a.id === id ? { ...a, x, y } : a);
+        } else {
+            p.jogadores = (p.jogadores || []).map((j: any) => j.id === id ? { ...j, x, y } : j);
+        }
+        localStorage.setItem("t20-master-screen-v7", JSON.stringify(p));
+    }
+  };
+
   const timeline: ItemTimeline[] = [
     ...ameacas.filter(a => a.iniciativaAtual !== undefined).map(a => ({ id: a.id, nome: a.nome, iniciativa: a.iniciativaAtual!, tipo: "AMEACA" as const })),
     ...jogadores.map(j => ({ id: j.id, nome: j.nome, iniciativa: j.iniciativa, tipo: "JOGADOR" as const }))
@@ -37,8 +79,8 @@ export default function PlayerView() {
   const dadosAtivo = ativo?.tipo === 'AMEACA' ? ameacas.find(a => a.id === ativo.id) : null;
 
   const tokensMap = [
-      ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })),
-      ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))
+      ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, tamanho: a.tamanho, imagemUrl: a.imagemUrl })),
+      ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50, tamanho: j.tamanho, imagemUrl: j.imagemUrl }))
   ];
 
   // ==========================================
@@ -48,10 +90,16 @@ export default function PlayerView() {
       return (
           <div className="h-screen w-screen bg-gray-950 overflow-hidden flex flex-col font-sans">
               <div className="flex-grow relative">
-                  {/* Mapa Readonly */}
-                  <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} readonly={true} />
+                  <BattleMap 
+                    mapaUrl={mapaUrl} 
+                    tokens={tokensMap} 
+                    // CORREÇÃO AQUI: Passando as props obrigatórias que faltavam
+                    isGm={false}
+                    readonly={false} // Liberado para interagir (Zoom/Pan/Resize)
+                    onMoveToken={handleMoveToken}
+                    onResizeToken={handleResizeToken}
+                  />
                   
-                  {/* Card do Turno Atual Flutuante */}
                   {ativo && (
                       <div className="absolute top-4 right-4 bg-gray-900/90 border border-yellow-500 p-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-md animate-in slide-in-from-right z-50">
                           <div className="relative">
@@ -66,7 +114,6 @@ export default function PlayerView() {
                   )}
               </div>
               
-              {/* Timeline Horizontal */}
               <div className="h-24 bg-gray-900 border-t border-gray-800 p-2">
                   <div className="flex gap-2 overflow-x-auto h-full items-center px-4">
                       {timeline.map((item, idx) => {

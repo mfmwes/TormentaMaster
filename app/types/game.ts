@@ -7,50 +7,63 @@ export type Atributos = {
   car: string;
 };
 
+// Tipo para as Ações da Ameaça
 export type Acao = {
   id: string;
   nome: string;
-  tipo: string; // Ex: "Padrão", "Livre", "Passiva"
-  teste: string; // Ex: "+39", "CD 26"
-  dano: string;  // Ex: "4d10+28"
+  tipo: string;
+  teste: string;
+  dano: string;
   descricao: string;
 };
+
+export type Condicao = string;
 
 export type Ameaca = {
   id: string;
   nome: string;
   nd: string;
-  tipo: string;           // Ex: "Construto Enorme"
+  tipo: string;
   deslocamento: string;
   defesa: number;
   pvAtual: number;
   pvMax: number;
   pmAtual: number;
   pmMax: number;
-  acoes: Acao[];          // <--- MUDANÇA PRINCIPAL: Lista estruturada
+  acoes: Acao[]; 
   pericias: string;
   atributos: Atributos;
+  condicoes: Condicao[];
   iniciativaAtual?: number;
-  condicoes: string[];
   imagemUrl?: string;
-  x?: number; // Posição X em % (0 a 100)
-  y?: number; // Posição Y em % (0 a 100)
-  tamanho?: number; // 1 = Médio, 2 = Grande...
-  cor?: string; // Para diferenciar tokens
-};
-
-export type ModeloAmeaca = Omit<Ameaca, "id" | "iniciativaAtual" | "pvAtual" | "pmAtual" | "condicoes"> & {
-  pvPadrao: number;
-  pmPadrao: number;
+  imagemStorageId?: string | null;
+  x?: number;
+  y?: number;
 };
 
 export type Jogador = {
   id: string;
   nome: string;
   iniciativa: number;
+  imagemUrl?: string;
+  imagemStorageId?: string | null;
   x?: number;
   y?: number;
-  cor?: string;
+};
+
+export type ModeloAmeaca = Ameaca & {
+  pvPadrao: number;
+  pmPadrao: number;
+};
+
+export type LogEntry = {
+  id: string;
+  hora: string;
+  origem: string;
+  rotulo: string;
+  resultado: string;
+  detalhes: string;
+  critico: boolean;
 };
 
 export type ItemTimeline = {
@@ -60,18 +73,8 @@ export type ItemTimeline = {
   tipo: "AMEACA" | "JOGADOR";
 };
 
+
 export type ResultadoRolagem = {
   total: number;
   detalhes: string;
-  expressao: string;
-};
-
-export type LogEntry = {
-  id: string;
-  hora: string;
-  origem: string; // Ex: "Goblin Arqueiro"
-  rotulo: string; // Ex: "Ataque (Espada)" ou "Reflexos"
-  resultado: string; // Ex: "22"
-  detalhes: string; // Ex: "[18] + 4"
-  critico: boolean;
 };

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 
-// Tipos
+// --- TIPOS ---
 type TokenType = "AMEACA" | "JOGADOR";
 
 type TokenData = {
@@ -9,6 +9,7 @@ type TokenData = {
   tipo: TokenType;
   x: number;
   y: number;
+  tamanho?: number; 
   imagemUrl?: string;
 };
 
@@ -18,68 +19,87 @@ type Props = {
   readonly?: boolean;
   isGm: boolean;
   onMoveToken: (id: string, tipo: TokenType, x: number, y: number) => void;
+  onResizeToken?: (id: string, tipo: TokenType, novoTamanho: number) => void;
 };
 
-export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken }: Props) => {
+export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken, onResizeToken }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Guardamos apenas o ID para buscar o dado sempre fresco na lista 'tokens'
+  const hoveredTokenRef = useRef<string | null>(null);
   
   // Estado do Viewport (Zoom e Pan)
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  
-  // Estado de Arrastar o Mapa (Pan)
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-
-  // Estado de Arrastar Token
-  const [draggingToken, setDraggingToken] = useState<string | null>(null);
-
-  // Aviso de "Use Ctrl + Scroll"
+  const [localDrag, setLocalDrag] = useState<{ id: string, x: number, y: number } | null>(null);
   const [showCtrlWarning, setShowCtrlWarning] = useState(false);
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- SOLUÇÃO DO SCROLL: Ctrl + Wheel ---
+  // --- 1. DETECÇÃO DE TECLAS (+ e -) ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const hoveredId = hoveredTokenRef.current;
+      
+      if (!hoveredId || !onResizeToken) return;
+
+      const token = tokens.find(t => t.id === hoveredId);
+      if (!token) return;
+
+      // TRAVA DE SEGURANÇA:
+      // Se NÃO for GM, só permite redimensionar se o token for do tipo "JOGADOR"
+      if (!isGm && token.tipo !== "JOGADOR") return;
+
+      let delta = 0;
+      if (e.key === "+" || e.key === "=" || e.key === "Add") delta = 0.1;
+      if (e.key === "-" || e.key === "_" || e.key === "Subtract") delta = -0.1;
+
+      if (delta !== 0) {
+        e.preventDefault(); 
+        const tamanhoAtual = token.tamanho || 1;
+        const novoTamanho = Math.max(0.5, Math.min(6, tamanhoAtual + delta));
+        const tamanhoFormatado = parseFloat(novoTamanho.toFixed(1));
+        
+        onResizeToken(token.id, token.tipo, tamanhoFormatado);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [tokens, onResizeToken, isGm]); 
+
+  // --- 2. ZOOM DO MAPA (SCROLL) ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleNativeWheel = (e: WheelEvent) => {
-      // Verifica se a tecla CTRL (ou Command no Mac) está pressionada
       if (e.ctrlKey || e.metaKey) {
-        // Se estiver segurando Ctrl, bloqueia a página e dá ZOOM
         e.preventDefault();
-
         const zoomIntensity = 0.001;
         setScale((prevScale) => {
           const newScale = prevScale + e.deltaY * -zoomIntensity;
-          return Math.min(Math.max(0.5, newScale), 4); // Limites de zoom: 0.5x até 4x
+          return Math.min(Math.max(0.5, newScale), 4);
         });
       } else {
-        // Se NÃO estiver segurando Ctrl, permite rolar a página normalmente
-        // Mas mostra o aviso para o usuário saber como dar zoom
-        
-        // Lógica para mostrar o aviso e sumir depois de 2 segundos
         setShowCtrlWarning(true);
         if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
-        warningTimeoutRef.current = setTimeout(() => {
-            setShowCtrlWarning(false);
-        }, 2000);
+        warningTimeoutRef.current = setTimeout(() => { setShowCtrlWarning(false); }, 2000);
       }
     };
 
-    // { passive: false } é crucial para permitir o e.preventDefault()
     container.addEventListener('wheel', handleNativeWheel, { passive: false });
-
     return () => {
       container.removeEventListener('wheel', handleNativeWheel);
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
     };
-  }, []);
+  }, []); 
 
-  // --- CONTROLES DE PAN (ARRASTAR O FUNDO) ---
+  // --- CONTROLES DE PAN ---
   const handleMouseDownMap = (e: React.MouseEvent) => {
-    if (e.button === 0 && !draggingToken) {
+    if (e.button === 0 && !localDrag) {
       setIsPanning(true);
       setStartPan({ x: e.clientX - position.x, y: e.clientY - position.y });
     }
@@ -88,63 +108,55 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
   const handleMouseMoveMap = (e: React.MouseEvent) => {
     if (isPanning) {
       e.preventDefault();
-      setPosition({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
-      });
+      setPosition({ x: e.clientX - startPan.x, y: e.clientY - startPan.y });
     }
   };
 
-  const handleMouseUpMap = () => {
-    setIsPanning(false);
-  };
-
-  useEffect(() => {
-    const handleGlobalUp = () => setIsPanning(false);
-    window.addEventListener("mouseup", handleGlobalUp);
-    return () => window.removeEventListener("mouseup", handleGlobalUp);
-  }, []);
+  const handleMouseUpMap = () => { setIsPanning(false); };
 
   // --- MOVIMENTAÇÃO DE TOKEN ---
   const handleTokenMouseDown = (e: React.MouseEvent, t: TokenData) => {
-    e.stopPropagation();
-    if (readonly && !isGm) return; 
-    setDraggingToken(t.id);
+    e.stopPropagation(); 
+    e.preventDefault();
+    
+    // PERMISSÃO DE ARRASTAR: GM move tudo, Jogador move só o dele
+    const podeMexer = isGm || t.tipo === "JOGADOR";
+    if (readonly && !podeMexer) return; 
+    
+    setLocalDrag({ id: t.id, x: t.x, y: t.y });
   };
 
   useEffect(() => {
     const handleGlobalMove = (e: MouseEvent) => {
-      if (!draggingToken || !contentRef.current) return;
-
+      if (!localDrag || !contentRef.current) return;
       const rect = contentRef.current.getBoundingClientRect();
-      
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
+      setLocalDrag(prev => prev ? { ...prev, x, y } : null);
+    };
 
-      const finalX = Math.max(0, Math.min(100, x));
-      const finalY = Math.max(0, Math.min(100, y));
-
-      const token = tokens.find(t => t.id === draggingToken);
-      if (token) {
-        onMoveToken(token.id, token.tipo, finalX, finalY);
+    const handleGlobalUp = () => {
+      if (localDrag) {
+        const tokenOriginal = tokens.find(t => t.id === localDrag.id);
+        if (tokenOriginal) {
+            const finalX = Math.max(0, Math.min(100, localDrag.x));
+            const finalY = Math.max(0, Math.min(100, localDrag.y));
+            onMoveToken(localDrag.id, tokenOriginal.tipo, finalX, finalY);
+        }
+        setLocalDrag(null);
       }
+      setIsPanning(false);
     };
 
-    const handleGlobalUpToken = () => {
-      setDraggingToken(null);
-    };
-
-    if (draggingToken) {
+    if (localDrag || isPanning) {
       window.addEventListener("mousemove", handleGlobalMove);
-      window.addEventListener("mouseup", handleGlobalUpToken);
+      window.addEventListener("mouseup", handleGlobalUp);
     }
-
     return () => {
       window.removeEventListener("mousemove", handleGlobalMove);
-      window.removeEventListener("mouseup", handleGlobalUpToken);
+      window.removeEventListener("mouseup", handleGlobalUp);
     };
-  }, [draggingToken, tokens, onMoveToken]);
-
+  }, [localDrag, isPanning, tokens, onMoveToken]);
 
   return (
     <div 
@@ -154,82 +166,69 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
         onMouseMove={handleMouseMoveMap}
         onMouseUp={handleMouseUpMap}
     >
-      {/* Container Transformado */}
       <div 
         ref={contentRef}
         className="absolute origin-top-left transition-transform duration-75 ease-out"
-        style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-            width: '100%', 
-            height: '100%', 
-        }}
+        style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`, width: '100%', height: '100%' }}
       >
-        {/* Imagem do Mapa */}
         {mapaUrl ? (
-             <img 
-                src={mapaUrl} 
-                className="w-full h-full object-contain pointer-events-none" 
-                alt="Mapa de Batalha" 
-             />
+             <img src={mapaUrl} className="w-full h-full object-contain pointer-events-none" alt="Mapa" />
         ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-700">
-                Sem mapa carregado
-            </div>
+            <div className="w-full h-full flex items-center justify-center text-gray-700">Sem mapa carregado</div>
         )}
 
-        {/* Tokens */}
-        {tokens.map((t) => (
-          <div
-            key={t.id}
-            onMouseDown={(e) => handleTokenMouseDown(e, t)}
-            className={`absolute w-10 h-10 md:w-14 md:h-14 -ml-5 -mt-5 md:-ml-7 md:-mt-7 rounded-full border-2 shadow-lg transition-transform hover:scale-110 flex items-center justify-center z-10 cursor-pointer ${
-              t.tipo === "AMEACA" ? "border-red-500 bg-red-900" : "border-blue-500 bg-blue-900"
-            } ${draggingToken === t.id ? 'z-50 ring-2 ring-white' : ''}`}
-            style={{ 
-                left: `${t.x}%`, 
-                top: `${t.y}%`
-            }}
-            title={t.nome}
-          >
-            {t.imagemUrl ? (
-                <img src={t.imagemUrl} className="w-full h-full object-cover rounded-full pointer-events-none" alt={t.nome} />
-            ) : (
-                <span className="text-xs font-bold text-white pointer-events-none select-none">
-                    {t.nome.substring(0, 2).toUpperCase()}
-                </span>
-            )}
-            
-            {/* Nome flutuante */}
-            {draggingToken !== t.id && (
-                <div 
-                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[8px] px-1 rounded whitespace-nowrap pointer-events-none"
-                    style={{ transform: `translateX(-50%) scale(${1 / scale})` }} 
-                >
-                    {t.nome}
-                </div>
-            )}
-          </div>
-        ))}
+        {tokens.map((t) => {
+          const isDragging = localDrag?.id === t.id;
+          const x = isDragging ? localDrag.x : t.x;
+          const y = isDragging ? localDrag.y : t.y;
+          const tamanhoMulti = t.tamanho || 1; 
+          
+          return (
+            <div
+              key={t.id}
+              // AQUI: Atualiza o REF para o ID deste token ao passar o mouse
+              onMouseEnter={() => { hoveredTokenRef.current = t.id; }}
+              onMouseLeave={() => { hoveredTokenRef.current = null; }}
+              onMouseDown={(e) => handleTokenMouseDown(e, t)}
+              
+              className={`absolute rounded-full border-2 shadow-lg transition-transform hover:z-[100] flex items-center justify-center cursor-pointer group/token ${
+                t.tipo === "AMEACA" ? "border-red-500 bg-red-900" : "border-blue-500 bg-blue-900"
+              } ${isDragging ? 'z-[100] ring-2 ring-white scale-110' : 'z-10'}`}
+              style={{ 
+                  left: `${x}%`, top: `${y}%`,
+                  width: `${3.5 * tamanhoMulti}rem`, height: `${3.5 * tamanhoMulti}rem`,
+                  marginLeft: `-${1.75 * tamanhoMulti}rem`, marginTop: `-${1.75 * tamanhoMulti}rem`,
+              }}
+            >
+              {t.imagemUrl ? (
+                  <img src={t.imagemUrl} className="w-full h-full object-cover rounded-full pointer-events-none select-none" draggable={false} alt={t.nome} />
+              ) : (
+                  <span className="text-xs font-bold text-white pointer-events-none select-none">{t.nome.substring(0, 2).toUpperCase()}</span>
+              )}
+              
+              {!isDragging && (
+                  <div 
+                      className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap pointer-events-none opacity-0 group-hover/token:opacity-100 transition-opacity duration-200 shadow-md backdrop-blur-sm z-[200]"
+                      style={{ transform: `translateX(-50%) scale(${1 / (scale * tamanhoMulti)})` }} 
+                  >
+                      {t.nome}
+                  </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* AVISO DE CTRL + SCROLL */}
       {showCtrlWarning && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50 pointer-events-none animate-in fade-in zoom-in duration-200">
-              <div className="bg-black/80 text-white px-4 py-2 rounded-full font-bold text-sm shadow-xl">
-                  Segure <span className="text-yellow-400 font-mono">CTRL</span> + Scroll para dar Zoom
+              <div className="bg-black/80 text-white px-4 py-2 rounded-full font-bold text-sm shadow-xl backdrop-blur-md">
+                  Segure <span className="text-yellow-400 font-mono">CTRL</span> + Scroll para Zoom
               </div>
           </div>
       )}
 
-      {/* Controles Flutuantes */}
       <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-50">
-        <button 
-            onClick={() => { setScale(1); setPosition({x:0, y:0}); }}
-            className="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded shadow border border-gray-600 text-xs font-bold"
-            title="Resetar Visão"
-        >
-            Reset
-        </button>
+        <button onClick={() => { setScale(1); setPosition({x:0, y:0}); }} className="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded shadow border border-gray-600 text-xs font-bold">Reset</button>
         <div className="flex bg-gray-800 rounded border border-gray-600 overflow-hidden">
             <button onClick={() => setScale(s => Math.max(0.5, s - 0.2))} className="p-2 hover:bg-gray-700 text-white border-r border-gray-600">-</button>
             <span className="p-2 text-xs text-gray-300 min-w-[3rem] text-center">{Math.round(scale * 100)}%</span>

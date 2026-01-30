@@ -1,52 +1,47 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useMutation, useQuery } from "convex/react";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 // Tipos e Utils
-import { Ameaca, Jogador, ModeloAmeaca, LogEntry, ItemTimeline, Atributos } from "../types/game";
+import { Ameaca, Atributos, ItemTimeline, Jogador, LogEntry, ModeloAmeaca } from "../types/game";
 import { rolarDados } from "../utils/dice";
 
-// Componentes do Mestre
-import { ModalRolagem } from "../components/modals/ModalRolagem";
-import { ModalCondicoes } from "../components/modals/ModalCondicoes";
+// Componentes
+import { BattleMap } from "../components/BattleMap";
 import { ModalBestiario } from "../components/modals/ModalBestiario";
+import { ModalCondicoes } from "../components/modals/ModalCondicoes";
 import { ModalImportacao } from "../components/modals/ModalImportacao";
+import { ModalRolagem } from "../components/modals/ModalRolagem";
 import { ThreatCard } from "../components/ThreatCard";
 import { DiceLog } from "../components/ui/DiceLog";
-import { BattleMap } from "../components/BattleMap";
+import { UploadButton } from "../components/ui/UploadButton";
 
 // Componentes de Acesso e Jogador
 import { ModalLoginMestre } from "../components/modals/ModalLoginMestre";
 import { PlayerScreen } from "../components/PlayerScreen";
-import { UploadButton } from "../components/ui/UploadButton";
-
 
 export default function MesaPage() {
   const params = useParams();
   const salaId = params.salaId as string;
 
-  // 1. CONEXÃO COM O BACKEND
   const dadosRemotos = useQuery(api.mesa.lerSala, { codigo: salaId });
   const salvarRemoto = useMutation(api.mesa.atualizarSala);
   const definirSenhaRemoto = useMutation(api.mesa.definirSenha);
   const verificarSenhaRemoto = useMutation(api.mesa.verificarSenha);
   const criarSalaRemoto = useMutation(api.mesa.criarSala);
 
-  // 2. ESTADOS DA UI
   const [isMaster, setIsMaster] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Dados do Jogo
   const [ameacas, setAmeacas] = useState<Ameaca[]>([]);
   const [jogadores, setJogadores] = useState<Jogador[]>([]);
   const [historico, setHistorico] = useState<LogEntry[]>([]);
   const [turnoIndex, setTurnoIndex] = useState(-1);
   const [mapaUrl, setMapaUrl] = useState("");
   
-  // Bestiário e Toggles
   const [bestiario, setBestiario] = useState<ModeloAmeaca[]>([]); 
   const [modalResultado, setModalResultado] = useState<any | null>(null);
   const [modalCondicaoId, setModalCondicaoId] = useState<string | null>(null);
@@ -56,11 +51,10 @@ export default function MesaPage() {
   const [showMap, setShowMap] = useState(false);
   const [busca, setBusca] = useState("");
   
-  // Inputs temporários
   const [novoNomeJog, setNovoNomeJog] = useState("");
   const [novoInicJog, setNovoInicJog] = useState("");
+  const [novoAvatarJog, setNovoAvatarJog] = useState<string | null>(null);
 
-  // 3. SINCRONIZAÇÃO
   useEffect(() => {
     if (dadosRemotos?.dados) {
       setAmeacas(dadosRemotos.dados.ameacas || []);
@@ -103,14 +97,13 @@ export default function MesaPage() {
     }
   };
 
-  // --- FUNÇÃO ATUALIZADA PARA O UPLOAD ---
   const salvarGlobal = (partial: { 
     ameacas?: any[], 
     jogadores?: any[], 
     historico?: LogEntry[], 
     turnoIndex?: number, 
     mapaUrl?: string,
-    mapaStorageId?: string | null // Aceita ID ou Null
+    mapaStorageId?: string | null
   }) => {
     if (partial.ameacas) setAmeacas(partial.ameacas);
     if (partial.jogadores) setJogadores(partial.jogadores);
@@ -126,7 +119,6 @@ export default function MesaPage() {
         historico: partial.historico ?? historico,
         turnoIndex: partial.turnoIndex ?? turnoIndex,
         mapaUrl: partial.mapaUrl ?? mapaUrl,
-        // Lógica para salvar ou apagar o ID do mapa
         mapaStorageId: partial.mapaStorageId !== undefined 
             ? partial.mapaStorageId 
             : (dadosRemotos?.dados as any)?.mapaStorageId
@@ -134,7 +126,6 @@ export default function MesaPage() {
     });
   };
 
-  // 4. MÉTODOS
   const rolar = (expr: string, origem = "Sistema", rotulo = "Rolagem") => {
     const res = rolarDados(expr);
     if (!res) return;
@@ -148,18 +139,16 @@ export default function MesaPage() {
     salvarGlobal({ historico: [...historico.slice(-49), novoLog] });
   };
 
-  // Função atualizada para permitir limpar a imagem de uma vez só
   const updateAmeaca = (id: string, campo: string, valor: any) => {
     if (campo === "RESET_IMAGEM") {
-      // Limpa URL e ID atomicamente (ao mesmo tempo)
       salvarGlobal({ 
         ameacas: ameacas.map(a => a.id === id ? { ...a, imagemUrl: "", imagemStorageId: null } : a) 
       });
       return;
     }
-    // Comportamento padrão
     salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, [campo]: valor } : a) });
   };
+
   const removeAmeaca = (id: string) => salvarGlobal({ ameacas: ameacas.filter(a => a.id !== id) });
   
   const addAmeaca = () => {
@@ -168,7 +157,7 @@ export default function MesaPage() {
       id: crypto.randomUUID(), nome: "Nova Ameaça", nd: "1", tipo: "Monstro", deslocamento: "9m",
       defesa: 10, pvAtual: 10, pvMax: 10, pmAtual: 0, pmMax: 0, acoes: [], 
       pericias: "Iniciativa +0", atributos: atributosPadrao, condicoes: [], 
-      iniciativaAtual: undefined, imagemUrl: "", x: 50, y: 50
+      iniciativaAtual: undefined, imagemUrl: "", x: 50, y: 50, tamanho: 1
     };
     salvarGlobal({ ameacas: [...ameacas, nova] });
   };
@@ -209,10 +198,25 @@ export default function MesaPage() {
     else salvarGlobal({ jogadores: jogadores.map(j => j.id === id ? { ...j, x, y } : j) });
   };
 
+  const redimensionarToken = (id: string, tipo: "AMEACA" | "JOGADOR", novoTamanho: number) => {
+    if (tipo === "AMEACA") salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, tamanho: novoTamanho } : a) });
+    else salvarGlobal({ jogadores: jogadores.map(j => j.id === id ? { ...j, tamanho: novoTamanho } : j) });
+  };
+
   const addJogador = () => {
     if (novoNomeJog) {
-      salvarGlobal({ jogadores: [...jogadores, { id: crypto.randomUUID(), nome: novoNomeJog, iniciativa: Number(novoInicJog), x: 50, y: 50 }] });
+      salvarGlobal({ 
+        jogadores: [...jogadores, { 
+          id: crypto.randomUUID(), 
+          nome: novoNomeJog, 
+          iniciativa: Number(novoInicJog), 
+          imagemStorageId: novoAvatarJog || undefined, 
+          x: 50, y: 50, tamanho: 1 
+        }] 
+      });
       setNovoNomeJog("");
+      setNovoInicJog("");
+      setNovoAvatarJog(null);
     }
   };
 
@@ -223,7 +227,11 @@ export default function MesaPage() {
 
   const proximoTurno = () => { if (timeline.length > 0) salvarGlobal({ turnoIndex: (turnoIndex + 1) % timeline.length }); };
   const ameacasFiltradas = ameacas.filter(a => a.nome.toLowerCase().includes(busca.toLowerCase()) || a.tipo.toLowerCase().includes(busca.toLowerCase()));
-  const tokensMap = [...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, imagemUrl: a.imagemUrl })), ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50 }))];
+  
+  const tokensMap = [
+    ...ameacas.map(a => ({ id: a.id, nome: a.nome, tipo: "AMEACA" as const, x: a.x || 50, y: a.y || 50, tamanho: a.tamanho, imagemUrl: a.imagemUrl })),
+    ...jogadores.map(j => ({ id: j.id, nome: j.nome, tipo: "JOGADOR" as const, x: j.x || 50, y: j.y || 50, tamanho: j.tamanho, imagemUrl: j.imagemUrl }))
+  ];
 
   const salvarModelo = (a: Ameaca) => {
     const modelo: ModeloAmeaca = { ...a, pvPadrao: a.pvMax, pmPadrao: a.pmMax };
@@ -240,7 +248,7 @@ export default function MesaPage() {
         id: crypto.randomUUID(), nome: dados.nome || "Ameaça", nd: dados.nd || "?", tipo: dados.tipo || "Criatura", deslocamento: dados.deslocamento || "9m",
         defesa: dados.defesa || 10, pvMax: dados.pvMax || 10, pvAtual: dados.pvMax || 10, pmMax: dados.pmMax || 0, pmAtual: dados.pmMax || 0,
         acoes: dados.acoes || [], pericias: dados.pericias || "Iniciativa +0", atributos: dados.atributos || atributosPadrao,
-        condicoes: [], imagemUrl: "", iniciativaAtual: undefined, x: 50, y: 50
+        condicoes: [], imagemUrl: "", iniciativaAtual: undefined, x: 50, y: 50, tamanho: 1
     } as Ameaca;
     salvarGlobal({ ameacas: [...ameacas, nova] });
     setMostrarImportacao(false);
@@ -280,6 +288,8 @@ export default function MesaPage() {
                 mapaUrl={mapaUrl}
                 historico={historico}
                 onMoveToken={moverToken}
+                // AQUI: Passando a função para o jogador conseguir redimensionar
+                onResizeToken={redimensionarToken}
               />
           </div>
       );
@@ -305,14 +315,12 @@ export default function MesaPage() {
                 <div className="flex-grow max-w-lg mx-2 animate-in fade-in flex gap-2 items-center">
                     <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link ou Upload..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
                     
-                    {/* BOTÃO UPLOAD MAPA */}
                     <UploadButton 
                         label="Mapa" 
                         onUploadComplete={(id) => salvarGlobal({ mapaStorageId: id, mapaUrl: "" })} 
                         className="bg-blue-900 hover:bg-blue-800 text-white px-3 py-2 rounded text-xs font-bold border border-blue-700 whitespace-nowrap"
                     />
 
-                    {/* BOTÃO REMOVER MAPA */}
                     {(mapaUrl || (dadosRemotos?.dados as any)?.mapaStorageId) && (
                         <button 
                             onClick={() => salvarGlobal({ mapaUrl: "", mapaStorageId: null })}
@@ -344,8 +352,16 @@ export default function MesaPage() {
         {/* MAPA */}
         {showMap && (
             <div className="mb-8 w-full aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-700 relative shadow-2xl animate-in fade-in slide-in-from-top-4">
-                <BattleMap mapaUrl={mapaUrl} tokens={tokensMap} onMoveToken={moverToken} isGm={true} />
-                <div className="absolute bottom-2 right-2 text-[10px] text-gray-500 bg-black/50 px-2 rounded pointer-events-none">Arraste os tokens</div>
+                <BattleMap 
+                    mapaUrl={mapaUrl} 
+                    tokens={tokensMap} 
+                    onMoveToken={moverToken} 
+                    onResizeToken={redimensionarToken}
+                    isGm={true} 
+                />
+                <div className="absolute bottom-2 right-2 text-[10px] text-gray-500 bg-black/50 px-2 rounded pointer-events-none">
+                    Arraste tokens • Ctrl+Scroll p/ Zoom • Scroll no Token p/ Tamanho
+                </div>
             </div>
         )}
 
@@ -384,10 +400,18 @@ export default function MesaPage() {
                     );
                 })}
             </div>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800 items-center">
                 <input placeholder="Nome Jogador" className="bg-gray-950 p-1.5 rounded text-white border border-gray-700 text-xs flex-grow" value={novoNomeJog} onChange={e => setNovoNomeJog(e.target.value)} />
                 <input type="number" placeholder="Inic" className="bg-gray-950 p-1.5 rounded text-white border border-gray-700 text-xs w-14 text-center" value={novoInicJog} onChange={e => setNovoInicJog(e.target.value)} />
-                <button onClick={addJogador} className="bg-blue-700 hover:bg-blue-600 px-3 rounded font-bold text-xs">ADD</button>
+                
+                <UploadButton 
+                    compact
+                    className={`p-1.5 rounded border ${novoAvatarJog ? 'bg-green-700 border-green-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'}`}
+                    label={novoAvatarJog ? "OK" : "Img"}
+                    onUploadComplete={(id) => setNovoAvatarJog(id)}
+                />
+
+                <button onClick={addJogador} className="bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded font-bold text-xs">ADD</button>
             </div>
         </section>
 

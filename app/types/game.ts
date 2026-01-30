@@ -7,7 +7,6 @@ export type Atributos = {
   car: string;
 };
 
-// Tipo para as Ações da Ameaça
 export type Acao = {
   id: string;
   nome: string;
@@ -30,7 +29,7 @@ export type Ameaca = {
   pvMax: number;
   pmAtual: number;
   pmMax: number;
-  acoes: Acao[]; 
+  acoes: Acao[];
   pericias: string;
   atributos: Atributos;
   condicoes: Condicao[];
@@ -39,6 +38,7 @@ export type Ameaca = {
   imagemStorageId?: string | null;
   x?: number;
   y?: number;
+  tamanho?: number; // <--- NOVO CAMPO
 };
 
 export type Jogador = {
@@ -49,6 +49,7 @@ export type Jogador = {
   imagemStorageId?: string | null;
   x?: number;
   y?: number;
+  tamanho?: number; // <--- NOVO CAMPO
 };
 
 export type ModeloAmeaca = Ameaca & {
@@ -76,5 +77,5 @@ export type ItemTimeline = {
 export type ResultadoRolagem = {
   total: number;
   detalhes: string;
-  expressao?: string; 
+  expressao?: string;
 };

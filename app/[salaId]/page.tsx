@@ -23,7 +23,6 @@ import { UploadButton } from "../components/ui/UploadButton";
 import { ModalLoginMestre } from "../components/modals/ModalLoginMestre";
 import { PlayerScreen } from "../components/PlayerScreen";
 
-
 export default function MesaPage() {
   const params = useParams();
   const salaId = params.salaId as string;
@@ -158,6 +157,12 @@ export default function MesaPage() {
 
   const removeAmeaca = (id: string) => salvarGlobal({ ameacas: ameacas.filter(a => a.id !== id) });
   
+  const limparTodasAmeacas = () => {
+    if (confirm("⚠️ TEM CERTEZA? \n\nIsso apagará TODAS as fichas de ameaça da mesa. Os jogadores serão mantidos.")) {
+        salvarGlobal({ ameacas: [], turnoIndex: -1 });
+    }
+  };
+
   const addAmeaca = () => {
     const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
     const nova: Ameaca = {
@@ -166,11 +171,19 @@ export default function MesaPage() {
       pericias: "Iniciativa +0", atributos: atributosPadrao, condicoes: [], 
       iniciativaAtual: undefined, imagemUrl: "", x: 50, y: 50, tamanho: 1
     };
+    
+    // Adiciona e SALVA
     salvarGlobal({ ameacas: [...ameacas, nova] });
+
+    // SCROLL AUTOMÁTICO PARA O FUNDO DA PÁGINA (FOCO NA NOVA AMEAÇA)
+    setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 100);
   };
 
   const cloneAmeaca = (original: Ameaca) => {
     salvarGlobal({ ameacas: [...ameacas, { ...original, id: crypto.randomUUID(), nome: `${original.nome} (Cópia)`, iniciativaAtual: undefined, x: 50, y: 50 }] });
+    setTimeout(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }, 100);
   };
 
   const toggleCondicao = (id: string, cond: string) => {
@@ -248,6 +261,7 @@ export default function MesaPage() {
   const importarModelo = (m: ModeloAmeaca) => {
     salvarGlobal({ ameacas: [...ameacas, { ...m, id: crypto.randomUUID(), pvAtual: m.pvPadrao, pmAtual: m.pmPadrao, condicoes: [], iniciativaAtual: undefined, x: 50, y: 50 }] });
     setMostrarBestiario(false);
+    setTimeout(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }, 100);
   };
   const processarImportacaoTexto = (dados: Partial<Ameaca>) => {
     const atributosPadrao: Atributos = { for: "0", des: "0", con: "0", int: "0", sab: "0", car: "0" };
@@ -259,6 +273,7 @@ export default function MesaPage() {
     } as Ameaca;
     salvarGlobal({ ameacas: [...ameacas, nova] });
     setMostrarImportacao(false);
+    setTimeout(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }, 100);
   };
 
   if (dadosRemotos === undefined) {
@@ -303,58 +318,64 @@ export default function MesaPage() {
 
   return (
     <div className="flex bg-gray-950 min-h-screen text-gray-100 font-sans overflow-x-hidden">
-      <div className={`flex-grow p-4 md:p-6 pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
+      
+      {/* HEADER FIXO - Com Botão Limpar */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur-md shadow-2xl flex flex-col xl:flex-row justify-between items-center gap-4 border-b border-gray-800 py-4 px-4 md:px-6">
+          <h1 className="text-3xl font-black text-red-600 flex items-center gap-2">
+              TORMENTA<span className="text-white font-light">MASTER</span> 
+              <span className="text-xs text-gray-500 font-mono border border-gray-800 px-2 py-0.5 rounded bg-black/20">Sala: {salaId}</span>
+          </h1>
+          
+          {showMap ? (
+              <div className="flex-grow max-w-lg mx-2 animate-in fade-in flex gap-2 items-center">
+                  <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link ou Upload..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
+                  
+                  <UploadButton 
+                      label="Mapa" 
+                      onUploadComplete={(id) => salvarGlobal({ mapaStorageId: id, mapaUrl: "" })} 
+                      className="bg-blue-900 hover:bg-blue-800 text-white px-3 py-2 rounded text-xs font-bold border border-blue-700 whitespace-nowrap"
+                  />
+
+                  {(mapaUrl || (dadosRemotos?.dados as any)?.mapaStorageId) && (
+                      <button 
+                          onClick={() => salvarGlobal({ mapaUrl: "", mapaStorageId: null })}
+                          className="bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white p-2 rounded border border-red-800 transition"
+                          title="Remover Mapa"
+                      >
+                          🗑️
+                      </button>
+                  )}
+              </div>
+          ) : (
+              <div className="relative w-full max-w-md mx-4">
+                  <input type="text" placeholder="🔍 Buscar ameaça..." className="w-full bg-gray-900 border border-gray-700 rounded-full py-2 px-4 text-sm focus:outline-none focus:border-red-500" value={busca} onChange={(e) => setBusca(e.target.value)} />
+                  {busca && <button onClick={() => setBusca("")} className="absolute right-3 top-2 text-gray-500 hover:text-white">✕</button>}
+              </div>
+          )}
+
+          <div className="flex gap-2 items-center flex-wrap justify-center">
+             <button onClick={() => setShowMap(!showMap)} className={`border px-3 py-2 rounded font-bold text-sm transition ${showMap ? 'bg-blue-900 border-blue-500 text-white' : 'bg-gray-800 border-gray-700'}`}>🗺️ Mapa</button>
+             <button onClick={() => setShowLog(!showLog)} className={`bg-gray-800 border px-3 py-2 rounded font-bold text-sm transition ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700'}`}>📜</button>
+             <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold text-sm">📋 Importar</button>
+             <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova</button>
+             <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 border-indigo-700 px-3 py-2 rounded font-bold text-sm">📚 Bestiário</button>
+             <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 border-yellow-500 px-3 py-2 rounded font-bold text-sm">⚡ Iniciar</button>
+             
+             {/* BOTÃO LIMPAR - NO HEADER */}
+             <button onClick={limparTodasAmeacas} className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 hover:text-white px-3 py-2 rounded font-bold text-sm transition" title="Limpar todas as ameaças">🧹</button>
+             
+             <button onClick={() => { if(confirm("Resetar Combate?")) salvarGlobal({ ameacas: ameacas.map(a => ({...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: []})), turnoIndex: -1, historico: [] }) }} className="bg-green-900 border-green-700 px-3 py-2 rounded font-bold text-sm" title="Descanso">💤</button>
+          </div>
+      </header>
+
+      {/* CONTEÚDO PRINCIPAL com PADDING TOPO */}
+      <div className={`flex-grow p-4 md:p-6 pt-[220px] md:pt-[140px] pb-20 w-full transition-all duration-300 ease-in-out ${showLog ? 'xl:mr-80' : ''}`}>
         
         <ModalRolagem resultado={modalResultado} fechar={() => setModalResultado(null)} />
         {modalCondicaoId && <ModalCondicoes ameaca={ameacas.find(a => a.id === modalCondicaoId)!} fechar={() => setModalCondicaoId(null)} toggleCondicao={toggleCondicao} />}
         {mostrarBestiario && <ModalBestiario modelos={bestiario} fechar={() => setMostrarBestiario(false)} importar={importarModelo} excluir={(n: string) => setBestiario(prev => prev.filter(b => b.nome !== n))} />}
         {mostrarImportacao && <ModalImportacao fechar={() => setMostrarImportacao(false)} confirmar={processarImportacaoTexto} />}
         
-        {/* HEADER */}
-        <header className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-800 pb-4">
-            <h1 className="text-3xl font-black text-red-600 flex items-center gap-2">
-                TORMENTA<span className="text-white font-light">MASTER</span> 
-                <span className="text-xs text-gray-500 font-mono border border-gray-800 px-2 py-0.5 rounded bg-black/20">Sala: {salaId}</span>
-            </h1>
-            
-            {showMap ? (
-                <div className="flex-grow max-w-lg mx-2 animate-in fade-in flex gap-2 items-center">
-                    <input className="w-full bg-gray-900 border border-blue-900 text-blue-100 text-xs rounded px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="Cole o link ou Upload..." value={mapaUrl} onChange={(e) => salvarGlobal({ mapaUrl: e.target.value })} />
-                    
-                    <UploadButton 
-                        label="Mapa" 
-                        onUploadComplete={(id) => salvarGlobal({ mapaStorageId: id, mapaUrl: "" })} 
-                        className="bg-blue-900 hover:bg-blue-800 text-white px-3 py-2 rounded text-xs font-bold border border-blue-700 whitespace-nowrap"
-                    />
-
-                    {(mapaUrl || (dadosRemotos?.dados as any)?.mapaStorageId) && (
-                        <button 
-                            onClick={() => salvarGlobal({ mapaUrl: "", mapaStorageId: null })}
-                            className="bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white p-2 rounded border border-red-800 transition"
-                            title="Remover Mapa"
-                        >
-                            🗑️
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="relative w-full max-w-md mx-4">
-                    <input type="text" placeholder="🔍 Buscar ameaça..." className="w-full bg-gray-900 border border-gray-700 rounded-full py-2 px-4 text-sm focus:outline-none focus:border-red-500" value={busca} onChange={(e) => setBusca(e.target.value)} />
-                    {busca && <button onClick={() => setBusca("")} className="absolute right-3 top-2 text-gray-500 hover:text-white">✕</button>}
-                </div>
-            )}
-
-            <div className="flex gap-2 items-center flex-wrap justify-center">
-               <button onClick={() => setShowMap(!showMap)} className={`border px-3 py-2 rounded font-bold text-sm transition ${showMap ? 'bg-blue-900 border-blue-500 text-white' : 'bg-gray-800 border-gray-700'}`}>🗺️ Mapa</button>
-               <button onClick={() => setShowLog(!showLog)} className={`bg-gray-800 border px-3 py-2 rounded font-bold text-sm transition ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700'}`}>📜</button>
-               <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold text-sm">📋 Importar</button>
-               <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova</button>
-               <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 border-indigo-700 px-3 py-2 rounded font-bold text-sm">📚 Bestiário</button>
-               <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 border-yellow-500 px-3 py-2 rounded font-bold text-sm">⚡ Iniciar</button>
-               <button onClick={() => { if(confirm("Resetar Combate?")) salvarGlobal({ ameacas: ameacas.map(a => ({...a, pvAtual: a.pvMax, pmAtual: a.pmMax, condicoes: []})), turnoIndex: -1, historico: [] }) }} className="bg-green-900 border-green-700 px-3 py-2 rounded font-bold text-sm" title="Descanso">💤</button>
-            </div>
-        </header>
-
         {/* MAPA */}
         {showMap && (
             <div className="mb-8 w-full aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-700 relative shadow-2xl animate-in fade-in slide-in-from-top-4">
@@ -371,7 +392,7 @@ export default function MesaPage() {
             </div>
         )}
 
-        {/* TIMELINE ATUALIZADA - CORRIGIDA PARA MOSTRAR IMAGEM/ÍCONE */}
+        {/* TIMELINE */}
         <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
@@ -381,7 +402,6 @@ export default function MesaPage() {
                 {timeline.map((item, idx) => {
                     const isTurno = idx === turnoIndex;
                     
-                    // BUSCA DADOS COMPLETOS
                     const dadosItem = item.tipo === 'AMEACA' 
                         ? ameacas.find(a => a.id === item.id) 
                         : jogadores.find(j => j.id === item.id);
@@ -400,7 +420,6 @@ export default function MesaPage() {
                                 }} 
                             />
                             
-                            {/* IMAGEM OU ÍCONE */}
                             {dadosItem?.imagemUrl ? (
                                 <img src={dadosItem.imagemUrl} className="w-8 h-8 rounded-full object-cover border border-gray-600 bg-black" />
                             ) : (

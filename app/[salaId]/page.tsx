@@ -23,6 +23,7 @@ import { UploadButton } from "../components/ui/UploadButton";
 import { ModalLoginMestre } from "../components/modals/ModalLoginMestre";
 import { PlayerScreen } from "../components/PlayerScreen";
 
+
 export default function MesaPage() {
   const params = useParams();
   const salaId = params.salaId as string;
@@ -149,7 +150,6 @@ export default function MesaPage() {
     salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, [campo]: valor } : a) });
   };
 
-  // --- NOVA FUNÇÃO PARA ATUALIZAR JOGADOR (FOTO) ---
   const updateJogador = (id: string, campo: string, valor: any) => {
     salvarGlobal({ 
       jogadores: jogadores.map(j => j.id === id ? { ...j, [campo]: valor } : j) 
@@ -371,7 +371,7 @@ export default function MesaPage() {
             </div>
         )}
 
-        {/* TIMELINE ATUALIZADA COM UPLOAD DE JOGADOR */}
+        {/* TIMELINE ATUALIZADA - CORRIGIDA PARA MOSTRAR IMAGEM/ÍCONE */}
         <section className="mb-8 bg-gray-900/50 rounded-xl border border-gray-800 p-4 relative">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="text-gray-400 text-xs font-bold uppercase">Ordem de Turno</h2>
@@ -380,8 +380,11 @@ export default function MesaPage() {
             <div className="flex flex-col gap-1 max-h-60 overflow-y-auto pr-1">
                 {timeline.map((item, idx) => {
                     const isTurno = idx === turnoIndex;
-                    // Verifica dados do jogador para mostrar imagem ou ícone
-                    const dadosJogador = item.tipo === 'JOGADOR' ? jogadores.find(j => j.id === item.id) : null;
+                    
+                    // BUSCA DADOS COMPLETOS
+                    const dadosItem = item.tipo === 'AMEACA' 
+                        ? ameacas.find(a => a.id === item.id) 
+                        : jogadores.find(j => j.id === item.id);
 
                     return (
                         <div key={`${item.tipo}-${item.id}`} className={`flex items-center gap-3 p-2 border-l-4 rounded transition-all ${isTurno ? 'bg-gray-700 border-yellow-400' : 'bg-opacity-20 border-transparent ' + (item.tipo === 'AMEACA' ? 'bg-gray-800 border-l-red-800' : 'bg-blue-900 border-l-blue-800')}`} onClick={() => salvarGlobal({ turnoIndex: idx })}>
@@ -396,15 +399,22 @@ export default function MesaPage() {
                                     else salvarGlobal({ jogadores: jogadores.map(j => j.id === item.id ? { ...j, iniciativa: Number(e.target.value) } : j) }) 
                                 }} 
                             />
+                            
+                            {/* IMAGEM OU ÍCONE */}
+                            {dadosItem?.imagemUrl ? (
+                                <img src={dadosItem.imagemUrl} className="w-8 h-8 rounded-full object-cover border border-gray-600 bg-black" />
+                            ) : (
+                                <span className="text-lg">{item.tipo === 'AMEACA' ? '👾' : '🛡️'}</span>
+                            )}
+
                             <span className={`flex-grow font-bold text-sm ${item.tipo === 'AMEACA' ? 'text-red-200' : 'text-blue-200'} ${isTurno ? 'text-white' : ''}`}>{item.nome}</span>
                             
                             {item.tipo === 'JOGADOR' && (
                                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                    {/* Botão de Upload para Token existente */}
                                     <UploadButton 
                                         compact
-                                        className={`w-6 h-6 flex items-center justify-center rounded border transition text-[10px] ${dadosJogador?.imagemUrl ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400 hover:text-white'}`}
-                                        label={dadosJogador?.imagemUrl ? "Img" : "📷"}
+                                        className={`w-6 h-6 flex items-center justify-center rounded border transition text-[10px] ${dadosItem?.imagemUrl ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400 hover:text-white'}`}
+                                        label={dadosItem?.imagemUrl ? "Img" : "📷"}
                                         onUploadComplete={(id) => updateJogador(item.id, "imagemStorageId", id)}
                                     />
                                     

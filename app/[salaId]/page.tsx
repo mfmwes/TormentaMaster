@@ -477,5 +477,5 @@ export default function MesaPage() {
       </div>
       <DiceLog historico={historico} limpar={() => salvarGlobal({ historico: [] })} isOpen={showLog} onClose={() => setShowLog(false)} />
     </div>
-  );;
+  );
 }

@@ -73,8 +73,8 @@ export type ItemTimeline = {
   tipo: "AMEACA" | "JOGADOR";
 };
 
-
 export type ResultadoRolagem = {
   total: number;
   detalhes: string;
+  expressao?: string; 
 };

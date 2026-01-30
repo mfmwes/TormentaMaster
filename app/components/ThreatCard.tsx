@@ -8,7 +8,6 @@ import { UploadButton } from "./ui/UploadButton";
 
 type Props = {
   ameaca: Ameaca;
-  // Alterei 'keyof Ameaca' para 'string' para permitir nosso comando especial "RESET_IMAGEM"
   onUpdate: (id: string, campo: string, valor: any) => void;
   onDelete: (id: string) => void;
   onClone: (ameaca: Ameaca) => void;
@@ -43,7 +42,7 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
   return (
     <div className={`bg-gray-900 rounded-2xl border shadow-xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl ${ameaca.iniciativaAtual !== undefined ? 'border-red-800 shadow-red-900/20' : 'border-gray-800'} ${morta ? 'opacity-50 grayscale border-gray-700' : ''}`}>
       
-      {/* HEADER VISUAL (CSS ORIGINAL MANTIDO) */}
+      {/* HEADER VISUAL */}
       <div className="relative group/header">
         {ameaca.imagemUrl && (
            <div className="absolute inset-0 z-0 opacity-20 transition-opacity group-hover/header:opacity-30">
@@ -52,7 +51,10 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
            </div>
         )}
 
+        {/* ÁREA DE CONTROLE SUPERIOR (ND, INIC, BOTÕES) */}
         <div className="p-5 bg-gray-800/80 border-b border-gray-800 relative z-10 backdrop-blur-md">
+            
+            {/* 1. Iniciativa (Esquerda) */}
             <div className="absolute top-0 left-0 z-20">
                 {ameaca.iniciativaAtual !== undefined ? (
                     <div onClick={onRollIniciativa} className="bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-br-lg shadow-md cursor-pointer hover:bg-red-600 transition border-b border-r border-red-900 backdrop-blur-md flex flex-col items-center leading-none">
@@ -63,15 +65,22 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 )}
             </div>
 
-            <div className="absolute top-3 right-3 flex gap-2 bg-black/40 rounded-lg p-1.5 backdrop-blur-md opacity-100 md:opacity-0 group-hover/header:opacity-100 transition-opacity">
+            {/* 2. ND (Centro Superior - NOVO POSICIONAMENTO) */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-yellow-900/80 text-yellow-200 text-xs font-bold px-3 py-1 rounded-b-lg border-b border-r border-l border-yellow-700/50 shadow-md backdrop-blur flex items-center gap-1 group/nd hover:bg-yellow-800 transition">
+                 <span className="text-yellow-500 uppercase text-[9px] mr-1">ND</span>
+                 <InputSync className="bg-transparent w-8 text-center focus:outline-none focus:text-white cursor-pointer" value={ameaca.nd || "?"} onUpdate={(v) => onUpdate(ameaca.id, "nd", v)} />
+            </div>
+
+            {/* 3. Botões de Ação (Direita) */}
+            <div className="absolute top-3 right-3 flex gap-2 bg-black/40 rounded-lg p-1.5 backdrop-blur-md opacity-100 md:opacity-0 group-hover/header:opacity-100 transition-opacity z-30">
               <button onClick={() => setShowImgInput(!showImgInput)} className="text-gray-400 hover:text-blue-400 p-1" title="Imagem">🖼️</button>
               <button onClick={() => onSaveModel(ameaca)} className="text-gray-400 hover:text-yellow-400 p-1" title="Salvar">💾</button>
               <button onClick={() => onDelete(ameaca.id)} className="text-gray-400 hover:text-red-500 p-1" title="Excluir">🗑️</button>
             </div>
 
-            {/* BARRA DE UPLOAD (AQUI ESTÁ A LÓGICA CORRIGIDA) */}
+            {/* BARRA DE UPLOAD */}
             {showImgInput && (
-              <div className="mt-8 mb-4 animate-in fade-in slide-in-from-top-2 flex gap-2 items-stretch">
+              <div className="mt-8 mb-4 animate-in fade-in slide-in-from-top-2 flex gap-2 items-stretch relative z-30">
                   <InputSync 
                     className="w-full bg-black/60 text-sm text-blue-200 border border-blue-900/50 rounded-lg p-3 focus:outline-none focus:border-blue-500 transition-colors" 
                     placeholder="Link da imagem..." 
@@ -79,22 +88,14 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                     onUpdate={(v) => onUpdate(ameaca.id, "imagemUrl", v)} 
                     autoFocus 
                   />
-                  
-                  {/* Botão de Upload */}
                   <UploadButton 
                     compact 
                     onUploadComplete={(id) => onUpdate(ameaca.id, "imagemStorageId", id)} 
                     className="bg-blue-900 hover:bg-blue-800 border border-blue-700 text-white px-4 rounded-lg flex items-center justify-center transition"
                   />
-
-                  {/* Botão de Lixeira CORRIGIDO */}
                   {(ameaca.imagemUrl || ameaca.imagemStorageId) && (
                     <button 
-                      onClick={(e) => {
-                          e.preventDefault();
-                          // Chama o comando especial que criamos no page.tsx
-                          onUpdate(ameaca.id, "RESET_IMAGEM", null);
-                      }}
+                      onClick={(e) => { e.preventDefault(); onUpdate(ameaca.id, "RESET_IMAGEM", null); }}
                       className="bg-red-900/50 hover:bg-red-600 border border-red-800 text-white px-4 rounded-lg flex items-center justify-center transition"
                       title="Remover Imagem"
                     >
@@ -109,11 +110,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 <div className="flex-grow min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                         <InputSync className="bg-transparent text-2xl font-black w-full text-white focus:outline-none focus:border-b focus:border-red-500 placeholder-gray-500 drop-shadow-md truncate" value={ameaca.nome} onUpdate={(v) => onUpdate(ameaca.id, "nome", v)} placeholder="Nome da Ameaça" />
-                        
-                        <div className="bg-yellow-900/40 text-yellow-200 text-xs font-bold px-2 py-1 rounded border border-yellow-700/50 shadow-sm whitespace-nowrap flex items-center gap-1">
-                          <span className="text-yellow-500 uppercase text-[9px]">ND</span>
-                          <InputSync className="bg-transparent w-6 text-center focus:outline-none" value={ameaca.nd || "?"} onUpdate={(v) => onUpdate(ameaca.id, "nd", v)} />
-                        </div>
                     </div>
                     <InputSync className="bg-transparent text-sm font-mono text-gray-400 w-full focus:outline-none focus:text-gray-200" value={ameaca.tipo || ""} onUpdate={(v) => onUpdate(ameaca.id, "tipo", v)} placeholder="Tipo / Tamanho" />
                 </div>

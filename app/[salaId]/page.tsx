@@ -357,7 +357,7 @@ export default function MesaPage() {
              <button onClick={() => setShowMap(!showMap)} className={`border px-3 py-2 rounded font-bold text-sm transition ${showMap ? 'bg-blue-900 border-blue-500 text-white' : 'bg-gray-800 border-gray-700'}`}>🗺️ Mapa</button>
              <button onClick={() => setShowLog(!showLog)} className={`bg-gray-800 border px-3 py-2 rounded font-bold text-sm transition ${showLog ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700'}`}>📜</button>
              <button onClick={() => setMostrarImportacao(true)} className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded font-bold text-sm">📋 Importar</button>
-             <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova</button>
+             <button onClick={addAmeaca} className="bg-gray-800 border-gray-700 px-3 py-2 rounded font-bold text-sm">+ Nova Ameaça</button>
              <button onClick={() => setMostrarBestiario(true)} className="bg-indigo-900 border-indigo-700 px-3 py-2 rounded font-bold text-sm">📚 Bestiário</button>
              <button onClick={rolarIniciativaGlobal} className="bg-yellow-600 border-yellow-500 px-3 py-2 rounded font-bold text-sm">⚡ Iniciar</button>
              
@@ -477,5 +477,5 @@ export default function MesaPage() {
       </div>
       <DiceLog historico={historico} limpar={() => salvarGlobal({ historico: [] })} isOpen={showLog} onClose={() => setShowLog(false)} />
     </div>
-  );
+  );;
 }

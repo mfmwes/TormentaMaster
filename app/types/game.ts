@@ -7,7 +7,7 @@ export type Atributos = {
   car: string;
 };
 
-// EXPORTANDO O TIPO AÇÃO PARA SUMIR O ERRO VERMELHO
+// Tipo para as Ações da Ameaça
 export type Acao = {
   id: string;
   nome: string;
@@ -30,13 +30,13 @@ export type Ameaca = {
   pvMax: number;
   pmAtual: number;
   pmMax: number;
-  acoes: Acao[]; // Agora usa o tipo exportado acima
+  acoes: Acao[]; 
   pericias: string;
   atributos: Atributos;
   condicoes: Condicao[];
   iniciativaAtual?: number;
   imagemUrl?: string;
-  imagemStorageId?: string | null; // Tipagem correta para o upload
+  imagemStorageId?: string | null;
   x?: number;
   y?: number;
 };
@@ -71,4 +71,10 @@ export type ItemTimeline = {
   nome: string;
   iniciativa: number;
   tipo: "AMEACA" | "JOGADOR";
+};
+
+
+export type ResultadoRolagem = {
+  total: number;
+  detalhes: string;
 };

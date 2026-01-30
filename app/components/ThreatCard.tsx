@@ -4,10 +4,12 @@ import { StatBox } from "./ui/StatBox";
 import { DiceText } from "./ui/DiceText";
 import { useState } from "react";
 import { InputSync } from "./ui/InputSync";
+import { UploadButton } from "./ui/UploadButton";
 
 type Props = {
   ameaca: Ameaca;
-  onUpdate: (id: string, campo: keyof Ameaca, valor: any) => void;
+  // Alterei 'keyof Ameaca' para 'string' para permitir nosso comando especial "RESET_IMAGEM"
+  onUpdate: (id: string, campo: string, valor: any) => void;
   onDelete: (id: string) => void;
   onClone: (ameaca: Ameaca) => void;
   onSaveModel: (ameaca: Ameaca) => void;
@@ -41,7 +43,7 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
   return (
     <div className={`bg-gray-900 rounded-2xl border shadow-xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl ${ameaca.iniciativaAtual !== undefined ? 'border-red-800 shadow-red-900/20' : 'border-gray-800'} ${morta ? 'opacity-50 grayscale border-gray-700' : ''}`}>
       
-      {/* HEADER VISUAL */}
+      {/* HEADER VISUAL (CSS ORIGINAL MANTIDO) */}
       <div className="relative group/header">
         {ameaca.imagemUrl && (
            <div className="absolute inset-0 z-0 opacity-20 transition-opacity group-hover/header:opacity-30">
@@ -67,13 +69,45 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
               <button onClick={() => onDelete(ameaca.id)} className="text-gray-400 hover:text-red-500 p-1" title="Excluir">🗑️</button>
             </div>
 
-            {showImgInput && (<div className="mt-8 mb-4 animate-in fade-in slide-in-from-top-2"><InputSync className="w-full bg-black/60 text-sm text-blue-200 border border-blue-900/50 rounded-lg p-3 focus:outline-none focus:border-blue-500 transition-colors" placeholder="Link da imagem..." value={ameaca.imagemUrl || ""} onUpdate={(v) => onUpdate(ameaca.id, "imagemUrl", v)} autoFocus /></div>)}
+            {/* BARRA DE UPLOAD (AQUI ESTÁ A LÓGICA CORRIGIDA) */}
+            {showImgInput && (
+              <div className="mt-8 mb-4 animate-in fade-in slide-in-from-top-2 flex gap-2 items-stretch">
+                  <InputSync 
+                    className="w-full bg-black/60 text-sm text-blue-200 border border-blue-900/50 rounded-lg p-3 focus:outline-none focus:border-blue-500 transition-colors" 
+                    placeholder="Link da imagem..." 
+                    value={ameaca.imagemUrl || ""} 
+                    onUpdate={(v) => onUpdate(ameaca.id, "imagemUrl", v)} 
+                    autoFocus 
+                  />
+                  
+                  {/* Botão de Upload */}
+                  <UploadButton 
+                    compact 
+                    onUploadComplete={(id) => onUpdate(ameaca.id, "imagemStorageId", id)} 
+                    className="bg-blue-900 hover:bg-blue-800 border border-blue-700 text-white px-4 rounded-lg flex items-center justify-center transition"
+                  />
+
+                  {/* Botão de Lixeira CORRIGIDO */}
+                  {(ameaca.imagemUrl || ameaca.imagemStorageId) && (
+                    <button 
+                      onClick={(e) => {
+                          e.preventDefault();
+                          // Chama o comando especial que criamos no page.tsx
+                          onUpdate(ameaca.id, "RESET_IMAGEM", null);
+                      }}
+                      className="bg-red-900/50 hover:bg-red-600 border border-red-800 text-white px-4 rounded-lg flex items-center justify-center transition"
+                      title="Remover Imagem"
+                    >
+                      🗑️
+                    </button>
+                  )}
+              </div>
+            )}
             
             <div className={`flex items-start gap-4 ${showImgInput ? '' : 'mt-4 pl-12 md:pl-0'}`}>
                 {ameaca.imagemUrl ? <img src={ameaca.imagemUrl} className="w-16 h-16 rounded-full border-2 border-red-500/50 object-cover shadow-lg bg-gray-900 hidden md:block" alt="" /> : <div className="w-16 h-16 rounded-full bg-gray-800 border-2 border-gray-700 hidden md:flex items-center justify-center text-2xl text-gray-500 shadow-inner">👾</div>}
                 <div className="flex-grow min-w-0">
                     <div className="flex items-center gap-3 mb-1">
-                        {/* INPUTS DE NOME E ND SUBSTITUIDOS */}
                         <InputSync className="bg-transparent text-2xl font-black w-full text-white focus:outline-none focus:border-b focus:border-red-500 placeholder-gray-500 drop-shadow-md truncate" value={ameaca.nome} onUpdate={(v) => onUpdate(ameaca.id, "nome", v)} placeholder="Nome da Ameaça" />
                         
                         <div className="bg-yellow-900/40 text-yellow-200 text-xs font-bold px-2 py-1 rounded border border-yellow-700/50 shadow-sm whitespace-nowrap flex items-center gap-1">
@@ -115,11 +149,9 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
               <div key={acao.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden group/acao hover:border-gray-700 transition shadow-sm">
                 <div className="flex justify-between items-center bg-gray-950/50 p-2 border-b border-gray-800/50">
                     <div className="flex items-center gap-2 flex-grow">
-                        {/* InputSync no Nome da Ação */}
                         <InputSync className="font-bold text-sm text-red-200 bg-transparent focus:outline-none w-full placeholder-red-900/50" value={acao.nome} onUpdate={v => updateAcao(acao.id, 'nome', v)} placeholder="Nome da Ação" />
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* InputSync no Tipo */}
                         <InputSync className="text-[10px] bg-gray-900 text-gray-400 border border-gray-800 rounded px-2 py-0.5 w-20 text-center focus:border-blue-500 focus:outline-none uppercase tracking-wide" value={acao.tipo} onUpdate={v => updateAcao(acao.id, 'tipo', v)} placeholder="TIPO" />
                         <button onClick={() => removeAcao(acao.id)} className="text-gray-600 hover:text-red-500 w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover/acao:opacity-100 transition">✕</button>
                     </div>
@@ -143,14 +175,12 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 </div>
                 
                 <div className="px-2 pb-2">
-                    {/* Nota: Textarea precisa de uma lógica similar, mas vamos simplificar usando o onBlur nativo aqui se quiser, ou um TextareaSync. 
-                        Para simplificar, vamos usar o onBlur direto no textarea padrão */}
                     <textarea 
                       className="text-xs text-gray-400 bg-transparent resize-none focus:outline-none focus:text-gray-200 w-full min-h-[1.5em] leading-relaxed pl-1 border-l-2 border-gray-800 focus:border-gray-600" 
                       defaultValue={acao.descricao} 
                       onBlur={e => updateAcao(acao.id, 'descricao', e.target.value)}
                       placeholder="Descrição do efeito..." 
-                      key={acao.descricao} // Hack para atualizar se mudar externamente
+                      key={acao.descricao}
                       rows={Math.max(1, Math.min(5, acao.descricao.split('\n').length))} 
                     />
                 </div>
@@ -163,24 +193,22 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
         {/* PERÍCIAS */}
         <div>
           <div className="flex items-center gap-2 mb-2 px-1">
-             <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Perícias & Sentidos</span>
-             <div className="h-px bg-gray-800 flex-grow"></div>
+              <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Perícias & Sentidos</span>
+              <div className="h-px bg-gray-800 flex-grow"></div>
           </div>
           
           <div className="bg-gray-950 border border-gray-800 rounded-lg p-3 relative group/pericias hover:border-gray-700 transition">
-             <div className="text-sm leading-relaxed text-gray-300 font-medium">
+              <div className="text-sm leading-relaxed text-gray-300 font-medium">
                 <DiceText texto={ameaca.pericias || ""} onRolar={(expr) => onRoll(expr, ameaca.nome, "Perícia")} />
-             </div>
-             
-             {/* Textarea também com onBlur para não travar */}
-             <textarea 
+              </div>
+              <textarea 
                 className="w-full bg-transparent text-xs text-gray-600 mt-3 pt-2 border-t border-gray-900 focus:text-gray-300 focus:border-gray-700 focus:outline-none transition-colors resize-none placeholder-gray-700" 
                 rows={1}
                 placeholder="Editar perícias..."
                 defaultValue={ameaca.pericias} 
                 onBlur={(e) => onUpdate(ameaca.id, "pericias", e.target.value)} 
                 key={ameaca.pericias}
-             />
+              />
           </div>
         </div>
       </div>

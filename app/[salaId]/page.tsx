@@ -148,7 +148,16 @@ export default function MesaPage() {
     salvarGlobal({ historico: [...historico.slice(-49), novoLog] });
   };
 
-  const updateAmeaca = (id: string, campo: keyof Ameaca, valor: any) => {
+  // Função atualizada para permitir limpar a imagem de uma vez só
+  const updateAmeaca = (id: string, campo: string, valor: any) => {
+    if (campo === "RESET_IMAGEM") {
+      // Limpa URL e ID atomicamente (ao mesmo tempo)
+      salvarGlobal({ 
+        ameacas: ameacas.map(a => a.id === id ? { ...a, imagemUrl: "", imagemStorageId: null } : a) 
+      });
+      return;
+    }
+    // Comportamento padrão
     salvarGlobal({ ameacas: ameacas.map(a => a.id === id ? { ...a, [campo]: valor } : a) });
   };
   const removeAmeaca = (id: string) => salvarGlobal({ ameacas: ameacas.filter(a => a.id !== id) });

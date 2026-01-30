@@ -44,8 +44,8 @@ export const UploadButton = ({ onUploadComplete, label = "Upload", className, co
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className={className || `bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-bold py-1 px-3 rounded text-xs transition flex items-center gap-2 ${uploading ? "opacity-50 cursor-wait" : ""}`}
-        title="Enviar imagem do dispositivo"
+        className={className || "bg-blue-600 hover:bg-blue-500 text-white p-2 rounded text-xs font-bold"}
+        title="Fazer Upload"
       >
         {uploading ? "..." : (compact ? "📁" : `📁 ${label}`)}
       </button>

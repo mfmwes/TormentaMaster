@@ -26,9 +26,12 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   
-  // Guardamos apenas o ID para buscar o dado sempre fresco na lista 'tokens'
+  // Hover apenas para desktop
   const hoveredTokenRef = useRef<string | null>(null);
   
+  // Estado de Seleção (Para Mobile/Desktop controle de tamanho)
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+
   // Estado do Viewport (Zoom e Pan)
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -38,18 +41,20 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
   const [showCtrlWarning, setShowCtrlWarning] = useState(false);
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- 1. DETECÇÃO DE TECLAS (+ e -) ---
+  // Token selecionado atual (computado)
+  const selectedToken = tokens.find(t => t.id === selectedTokenId);
+
+  // --- 1. ATALHOS DE TECLADO (DESKTOP) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const hoveredId = hoveredTokenRef.current;
+      // Prioridade: Token Selecionado (Clique) > Token Hover (Mouse)
+      const targetId = selectedTokenId || hoveredTokenRef.current;
       
-      if (!hoveredId || !onResizeToken) return;
+      if (!targetId || !onResizeToken) return;
 
-      const token = tokens.find(t => t.id === hoveredId);
+      const token = tokens.find(t => t.id === targetId);
       if (!token) return;
 
-      // TRAVA DE SEGURANÇA:
-      // Se NÃO for GM, só permite redimensionar se o token for do tipo "JOGADOR"
       if (!isGm && token.tipo !== "JOGADOR") return;
 
       let delta = 0;
@@ -57,7 +62,7 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
       if (e.key === "-" || e.key === "_" || e.key === "Subtract") delta = -0.1;
 
       if (delta !== 0) {
-        e.preventDefault(); 
+        // e.preventDefault(); // Comentado para não travar input de texto se houver
         const tamanhoAtual = token.tamanho || 1;
         const novoTamanho = Math.max(0.5, Math.min(6, tamanhoAtual + delta));
         const tamanhoFormatado = parseFloat(novoTamanho.toFixed(1));
@@ -68,7 +73,7 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [tokens, onResizeToken, isGm]); 
+  }, [tokens, onResizeToken, isGm, selectedTokenId]); 
 
   // --- 2. ZOOM DO MAPA (SCROLL) ---
   useEffect(() => {
@@ -97,42 +102,96 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
     };
   }, []); 
 
-  // --- CONTROLES DE PAN ---
-  const handleMouseDownMap = (e: React.MouseEvent) => {
-    if (e.button === 0 && !localDrag) {
+  // =========================================================
+  // LOGICA DE PAN (MOVER O MAPA) - MOUSE & TOUCH
+  // =========================================================
+  const startMapPan = (clientX: number, clientY: number) => {
+    if (!localDrag) {
       setIsPanning(true);
-      setStartPan({ x: e.clientX - position.x, y: e.clientY - position.y });
+      setStartPan({ x: clientX - position.x, y: clientY - position.y });
     }
   };
 
-  const handleMouseMoveMap = (e: React.MouseEvent) => {
+  const moveMapPan = (clientX: number, clientY: number) => {
     if (isPanning) {
-      e.preventDefault();
-      setPosition({ x: e.clientX - startPan.x, y: e.clientY - startPan.y });
+      setPosition({ x: clientX - startPan.x, y: clientY - startPan.y });
     }
   };
 
-  const handleMouseUpMap = () => { setIsPanning(false); };
+  // Mouse
+  const handleMouseDownMap = (e: React.MouseEvent) => {
+    if (e.button === 0) { // Botão esquerdo apenas
+       // Se clicou no fundo, deseleciona token
+       if (e.target === contentRef.current || e.target === containerRef.current) {
+          setSelectedTokenId(null);
+       }
+       startMapPan(e.clientX, e.clientY);
+    }
+  };
+  
+  // Touch (Celular)
+  const handleTouchStartMap = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) { // 1 dedo = Pan
+        // Se tocou no fundo, deseleciona
+        if (e.target === contentRef.current || e.target === containerRef.current) {
+            setSelectedTokenId(null);
+        }
+        startMapPan(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  };
 
-  // --- MOVIMENTAÇÃO DE TOKEN ---
-  const handleTokenMouseDown = (e: React.MouseEvent, t: TokenData) => {
-    e.stopPropagation(); 
-    e.preventDefault();
-    
-    // PERMISSÃO DE ARRASTAR: GM move tudo, Jogador move só o dele
+  // =========================================================
+  // LOGICA DE TOKENS (MOVER & SELECIONAR) - MOUSE & TOUCH
+  // =========================================================
+  const startTokenDrag = (t: TokenData) => {
     const podeMexer = isGm || t.tipo === "JOGADOR";
-    if (readonly && !podeMexer) return; 
+    if (readonly && !podeMexer) return;
     
+    setSelectedTokenId(t.id); // Seleciona ao começar a arrastar
     setLocalDrag({ id: t.id, x: t.x, y: t.y });
   };
 
+  // Mouse Down no Token
+  const handleTokenMouseDown = (e: React.MouseEvent, t: TokenData) => {
+    e.stopPropagation(); e.preventDefault();
+    startTokenDrag(t);
+  };
+
+  // Touch Start no Token
+  const handleTokenTouchStart = (e: React.TouchEvent, t: TokenData) => {
+    e.stopPropagation(); 
+    // Não previna default aqui imediatamente se quiser permitir scroll, 
+    // mas para drag n drop geralmente prevenimos.
+    // e.preventDefault(); 
+    startTokenDrag(t);
+  };
+
+  // =========================================================
+  // EVENTOS GLOBAIS (WINDOW) PARA ARRASTAR/SOLTAR
+  // =========================================================
   useEffect(() => {
-    const handleGlobalMove = (e: MouseEvent) => {
-      if (!localDrag || !contentRef.current) return;
-      const rect = contentRef.current.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      setLocalDrag(prev => prev ? { ...prev, x, y } : null);
+    // Função unificada para calcular posição do drag
+    const processMove = (clientX: number, clientY: number) => {
+        if (localDrag && contentRef.current) {
+            const rect = contentRef.current.getBoundingClientRect();
+            const x = ((clientX - rect.left) / rect.width) * 100;
+            const y = ((clientY - rect.top) / rect.height) * 100;
+            setLocalDrag(prev => prev ? { ...prev, x, y } : null);
+        }
+    };
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+        if (localDrag) { e.preventDefault(); processMove(e.clientX, e.clientY); }
+        if (isPanning) { e.preventDefault(); moveMapPan(e.clientX, e.clientY); }
+    };
+
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+        if (localDrag || isPanning) {
+            // Importante: previne scroll da tela enquanto arrasta token ou mapa
+            if (e.cancelable) e.preventDefault(); 
+            processMove(e.touches[0].clientX, e.touches[0].clientY);
+            moveMapPan(e.touches[0].clientX, e.touches[0].clientY);
+        }
     };
 
     const handleGlobalUp = () => {
@@ -148,23 +207,40 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
       setIsPanning(false);
     };
 
-    if (localDrag || isPanning) {
-      window.addEventListener("mousemove", handleGlobalMove);
-      window.addEventListener("mouseup", handleGlobalUp);
-    }
+    // Adiciona listeners globais
+    window.addEventListener("mousemove", handleGlobalMouseMove, { passive: false });
+    window.addEventListener("mouseup", handleGlobalUp);
+    window.addEventListener("touchmove", handleGlobalTouchMove, { passive: false });
+    window.addEventListener("touchend", handleGlobalUp);
+    window.addEventListener("touchcancel", handleGlobalUp);
+
     return () => {
-      window.removeEventListener("mousemove", handleGlobalMove);
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalUp);
+      window.removeEventListener("touchmove", handleGlobalTouchMove);
+      window.removeEventListener("touchend", handleGlobalUp);
+      window.removeEventListener("touchcancel", handleGlobalUp);
     };
-  }, [localDrag, isPanning, tokens, onMoveToken]);
+  }, [localDrag, isPanning, tokens, onMoveToken, position, startPan]);
+
+  // Função auxiliar para mudar tamanho pelo botão na tela
+  const changeSize = (delta: number) => {
+      if (!selectedToken || !onResizeToken) return;
+      const podeMexer = isGm || selectedToken.tipo === "JOGADOR";
+      if (!podeMexer) return;
+
+      const tamanhoAtual = selectedToken.tamanho || 1;
+      const novoTamanho = Math.max(0.5, Math.min(6, tamanhoAtual + delta));
+      const tamanhoFormatado = parseFloat(novoTamanho.toFixed(1));
+      onResizeToken(selectedToken.id, selectedToken.tipo, tamanhoFormatado);
+  };
 
   return (
     <div 
         ref={containerRef}
-        className="w-full h-full bg-gray-900 relative overflow-hidden cursor-grab active:cursor-grabbing select-none group"
+        className="w-full h-full bg-gray-900 relative overflow-hidden cursor-grab active:cursor-grabbing select-none group touch-none" // touch-none evita zoom nativo do browser no container
         onMouseDown={handleMouseDownMap}
-        onMouseMove={handleMouseMoveMap}
-        onMouseUp={handleMouseUpMap}
+        onTouchStart={handleTouchStartMap}
     >
       <div 
         ref={contentRef}
@@ -179,6 +255,7 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
 
         {tokens.map((t) => {
           const isDragging = localDrag?.id === t.id;
+          const isSelected = selectedTokenId === t.id;
           const x = isDragging ? localDrag.x : t.x;
           const y = isDragging ? localDrag.y : t.y;
           const tamanhoMulti = t.tamanho || 1; 
@@ -186,14 +263,15 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
           return (
             <div
               key={t.id}
-              // AQUI: Atualiza o REF para o ID deste token ao passar o mouse
               onMouseEnter={() => { hoveredTokenRef.current = t.id; }}
               onMouseLeave={() => { hoveredTokenRef.current = null; }}
               onMouseDown={(e) => handleTokenMouseDown(e, t)}
+              onTouchStart={(e) => handleTokenTouchStart(e, t)}
               
-              className={`absolute rounded-full border-2 shadow-lg transition-transform hover:z-[100] flex items-center justify-center cursor-pointer group/token ${
-                t.tipo === "AMEACA" ? "border-red-500 bg-red-900" : "border-blue-500 bg-blue-900"
-              } ${isDragging ? 'z-[100] ring-2 ring-white scale-110' : 'z-10'}`}
+              className={`absolute rounded-full border-2 shadow-lg transition-transform hover:z-[100] flex items-center justify-center cursor-pointer group/token
+                ${t.tipo === "AMEACA" ? "border-red-500 bg-red-900" : "border-blue-500 bg-blue-900"}
+                ${(isDragging || isSelected) ? 'z-[100] ring-4 ring-yellow-400 scale-105' : 'z-10'}
+              `}
               style={{ 
                   left: `${x}%`, top: `${y}%`,
                   width: `${3.5 * tamanhoMulti}rem`, height: `${3.5 * tamanhoMulti}rem`,
@@ -227,12 +305,27 @@ export const BattleMap = ({ mapaUrl, tokens, readonly = false, isGm, onMoveToken
           </div>
       )}
 
-      <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-50">
-        <button onClick={() => { setScale(1); setPosition({x:0, y:0}); }} className="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded shadow border border-gray-600 text-xs font-bold">Reset</button>
+      {/* CONTROLES DE MAPA (DIREITA INFERIOR) */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-50 items-end">
+        
+        {/* CONTROLE DE TAMANHO DO TOKEN (SÓ APARECE SE TIVER TOKEN SELECIONADO) */}
+        {selectedToken && (
+            <div className="bg-gray-900/90 backdrop-blur border border-yellow-500 rounded-lg p-2 mb-2 shadow-2xl animate-in slide-in-from-right flex flex-col items-center gap-1">
+                <span className="text-[10px] text-yellow-500 font-bold uppercase truncate max-w-[80px]">{selectedToken.nome}</span>
+                <div className="flex items-center gap-1">
+                    <button onClick={() => changeSize(-0.2)} className="w-8 h-8 bg-gray-800 hover:bg-gray-700 text-white rounded border border-gray-600 font-bold text-lg flex items-center justify-center active:scale-95">-</button>
+                    <span className="text-xs text-white font-mono w-8 text-center">{selectedToken.tamanho || 1}x</span>
+                    <button onClick={() => changeSize(0.2)} className="w-8 h-8 bg-gray-800 hover:bg-gray-700 text-white rounded border border-gray-600 font-bold text-lg flex items-center justify-center active:scale-95">+</button>
+                </div>
+            </div>
+        )}
+
+        <button onClick={() => { setScale(1); setPosition({x:0, y:0}); }} className="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded shadow border border-gray-600 text-xs font-bold w-full">Reset</button>
+        
         <div className="flex bg-gray-800 rounded border border-gray-600 overflow-hidden">
-            <button onClick={() => setScale(s => Math.max(0.5, s - 0.2))} className="p-2 hover:bg-gray-700 text-white border-r border-gray-600">-</button>
-            <span className="p-2 text-xs text-gray-300 min-w-[3rem] text-center">{Math.round(scale * 100)}%</span>
-            <button onClick={() => setScale(s => Math.min(4, s + 0.2))} className="p-2 hover:bg-gray-700 text-white border-l border-gray-600">+</button>
+            <button onClick={() => setScale(s => Math.max(0.5, s - 0.2))} className="p-3 hover:bg-gray-700 text-white border-r border-gray-600 active:bg-gray-600">🔍-</button>
+            <span className="p-3 text-xs text-gray-300 min-w-[3.5rem] text-center flex items-center justify-center">{Math.round(scale * 100)}%</span>
+            <button onClick={() => setScale(s => Math.min(4, s + 0.2))} className="p-3 hover:bg-gray-700 text-white border-l border-gray-600 active:bg-gray-600">🔍+</button>
         </div>
       </div>
     </div>

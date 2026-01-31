@@ -17,7 +17,6 @@ const parseCost = (custoStr: string): number => {
 };
 
 // --- TEXTAREA AUTO-AJUSTÁVEL ---
-// Correção de tipagem no props e ref
 type AutoTextAreaProps = {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -97,10 +96,16 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
         <div className={`bg-gray-900 border ${upgradeCost > 0 ? 'border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.15)]' : 'border-purple-900/30'} rounded overflow-hidden transition-all duration-300`}>
             
             {/* HEADER MAGIA */}
-            <div className="flex justify-between items-center bg-purple-900/10 px-2 py-0.5 border-b border-purple-900/20">
-                <div className="flex items-center gap-1 flex-grow">
-                    <span className="text-xs">🔮</span>
-                    <InputSync className="font-bold text-xs text-purple-200 bg-transparent focus:outline-none w-full placeholder-purple-900/50 capitalize" value={magia.nome} onUpdate={v => onUpdate('nome', v)} placeholder="Magia" />
+            <div className="flex justify-between items-center bg-purple-900/10 px-2 py-1 border-b border-purple-900/20">
+                <div className="flex items-center gap-2 flex-grow">
+                    <span className="text-sm">🔮</span>
+                    {/* AQUI: MUDANÇA PARA DAR DESTAQUE AO NOME */}
+                    <InputSync 
+                        className="font-black text-sm text-white bg-transparent focus:outline-none w-full placeholder-purple-900/50 capitalize tracking-wide drop-shadow-sm" 
+                        value={magia.nome} 
+                        onUpdate={v => onUpdate('nome', v)} 
+                        placeholder="Nome da Magia" 
+                    />
                 </div>
                 <div className="flex items-center gap-1">
                     <div className={`flex items-center rounded px-1.5 py-0 border transition-colors ${upgradeCost > 0 ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-900 border-purple-900/30'}`}>
@@ -112,7 +117,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                         )}
                     </div>
                     <InputSync className="text-[10px] bg-gray-900 text-purple-400 border border-purple-900/30 rounded px-1 w-8 text-center focus:border-purple-500 focus:outline-none uppercase" value={magia.circulo} onUpdate={v => onUpdate('circulo', v)} placeholder="CÍRC" />
-                    <button onClick={onDelete} className="text-purple-800 hover:text-red-500 w-4 h-4 flex items-center justify-center text-[10px] transition">✕</button>
+                    <button onClick={onDelete} className="text-purple-800 hover:text-red-500 w-5 h-5 flex items-center justify-center text-xs transition">✕</button>
                 </div>
             </div>
 
@@ -124,7 +129,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                         <AutoTextArea 
                             className="bg-transparent text-gray-200 w-full focus:outline-none focus:text-white text-xs leading-none py-0 capitalize" 
                             value={(magia as any)[campo]} 
-                            onChange={(e: any) => onUpdate(campo as keyof Magia, e.target.value)} 
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate(campo as keyof Magia, e.target.value)} 
                             placeholder="-" 
                         />
                     </div>
@@ -145,7 +150,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                 <AutoTextArea 
                     className="text-xs text-gray-200 bg-black/40 p-1.5 rounded border border-white/5 focus:border-purple-500/50 w-full leading-tight first-letter:uppercase" 
                     value={magia.efeito}
-                    onChange={(e: any) => onUpdate('efeito', e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate('efeito', e.target.value)}
                     placeholder="Descrição..." 
                 />
             </div>
@@ -185,7 +190,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                                     <AutoTextArea 
                                         className={`bg-transparent focus:text-white flex-grow border-b border-transparent focus:border-purple-800/50 transition-colors text-xs py-0.5 first-letter:uppercase leading-tight ${active ? 'text-white font-medium' : 'text-gray-300'}`}
                                         value={up.descricao} 
-                                        onChange={(e: any) => updateUpgrade(up.id, 'descricao', e.target.value)} 
+                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateUpgrade(up.id, 'descricao', e.target.value)} 
                                         placeholder="Upgrade..." 
                                     />
 
@@ -372,14 +377,14 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 </div>
                 <div className="flex gap-1 p-1 bg-gray-900/30">
                     <div className="flex-1 relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">ATQ</span>
+                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">ATQ</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.teste ? 'text-yellow-400' : 'text-gray-600'}`} value={acao.teste} onUpdate={v => updateAcao(acao.id, 'teste', v)} placeholder="+0" />
                         {acao.teste && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.teste, `${acao.nome} (Teste)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-yellow-600 text-yellow-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
                         )}
                     </div>
                     <div className="flex-[1.5] relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">DANO</span>
+                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">DANO</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.dano ? 'text-red-400' : 'text-gray-600'}`} value={acao.dano} onUpdate={v => updateAcao(acao.id, 'dano', v)} placeholder="-" />
                         {acao.dano && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.dano, `${acao.nome} (Dano)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-red-600 text-red-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
@@ -405,8 +410,8 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
           <div className="flex justify-between items-center mb-1 px-1 mt-3 border-t border-gray-800 pt-2">
             <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Grimório</label>
             <div className="flex gap-1">
-                <button onClick={() => setShowSpellSearch(true)} className="text-[9px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm flex items-center gap-1">🔍 Buscar</button>
-                <button onClick={addMagia} className="text-[9px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm">+ Manual</button>
+                <button onClick={() => setShowSpellSearch(true)} className="text-[10px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm flex items-center gap-1">🔍 Buscar</button>
+                <button onClick={addMagia} className="text-[10px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm">+ Manual</button>
             </div>
           </div>
           

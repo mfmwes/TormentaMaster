@@ -16,7 +16,6 @@ export type Acao = {
   descricao: string;
 };
 
-// --- ESTRUTURA COMPLETA DE MAGIAS ---
 export type Aprimoramento = {
   id: string;
   custo: string;     // Ex: "+1", "+2 PM"
@@ -33,16 +32,23 @@ export type Magia = {
   // Campos técnicos
   execucao: string;
   alcance: string;
-  area: string;      // Novo
-  alvo: string;      // Novo
+  area: string;      
+  alvo: string;      
   duracao: string;
   resistencia: string;
   
-  efeito: string;        // Texto descritivo base
-  danoBase?: string;     // Ex: "2d8+2" (Rolagem principal)
+  efeito: string;        
+  danoBase?: string;     
   
-  aprimoramentos: Aprimoramento[]; // Lista de upgrades
+  aprimoramentos: Aprimoramento[]; 
 };
+
+// --- CORREÇÃO: ADICIONADO TIPO QUE FALTAVA ---
+export type ResultadoRolagem = {
+  total: number;
+  detalhes: string;
+};
+// ---------------------------------------------
 
 export type Ameaca = {
   id: string;

@@ -10,51 +10,93 @@ export type Atributos = {
 export type Acao = {
   id: string;
   nome: string;
-  tipo: string;
-  teste: string;
-  dano: string;
+  tipo: string; // Padrão, Movimento, Completa, Livre
+  teste: string; // Ex: +10
+  dano: string; // Ex: 1d8+5
   descricao: string;
 };
 
-export type Condicao = string;
+export type Aprimoramento = {
+  id: string;
+  custo: string;     // Ex: "+1", "+2 PM"
+  descricao: string; // O que o aprimoramento faz
+  roll?: string;     // Ex: "+2d8" (Rolagem extra se houver)
+};
+
+export type Magia = {
+  id: string;
+  nome: string;
+  pm: string;
+  circulo: string;
+  
+  // Campos técnicos
+  execucao: string;
+  alcance: string;
+  area: string;      
+  alvo: string;      
+  duracao: string;
+  resistencia: string;
+  
+  efeito: string;        
+  danoBase?: string;     
+  
+  aprimoramentos: Aprimoramento[]; 
+};
+
+// --- CORREÇÃO AQUI: ADICIONADO 'expressao' ---
+export type ResultadoRolagem = {
+  total: number;
+  detalhes: string;
+  expressao?: string; // Propriedade adicionada para evitar o erro de build
+};
+// ---------------------------------------------
 
 export type Ameaca = {
   id: string;
   nome: string;
   nd: string;
-  tipo: string;
+  tipo: string; // Monstro, Humanoide, etc.
   deslocamento: string;
+  
   defesa: number;
   pvAtual: number;
   pvMax: number;
   pmAtual: number;
   pmMax: number;
-  acoes: Acao[];
-  pericias: string;
+
   atributos: Atributos;
-  condicoes: Condicao[];
-  iniciativaAtual?: number;
+  pericias: string;
+  condicoes: string[];
+  acoes: Acao[];
+  magias: Magia[];
+
+  // Token
   imagemUrl?: string;
   imagemStorageId?: string | null;
   x?: number;
   y?: number;
-  tamanho?: number; // <--- NOVO CAMPO
+  tamanho?: number;
+  
+  // Combate
+  iniciativaAtual?: number;
 };
 
 export type Jogador = {
   id: string;
   nome: string;
   iniciativa: number;
-  imagemUrl?: string;
-  imagemStorageId?: string | null;
   x?: number;
   y?: number;
-  tamanho?: number; // <--- NOVO CAMPO
+  tamanho?: number;
+  imagemUrl?: string;
+  imagemStorageId?: string | null;
 };
 
-export type ModeloAmeaca = Ameaca & {
-  pvPadrao: number;
-  pmPadrao: number;
+export type ItemTimeline = {
+  id: string;
+  nome: string;
+  iniciativa: number;
+  tipo: "AMEACA" | "JOGADOR";
 };
 
 export type LogEntry = {
@@ -67,15 +109,7 @@ export type LogEntry = {
   critico: boolean;
 };
 
-export type ItemTimeline = {
-  id: string;
-  nome: string;
-  iniciativa: number;
-  tipo: "AMEACA" | "JOGADOR";
-};
-
-export type ResultadoRolagem = {
-  total: number;
-  detalhes: string;
-  expressao?: string;
+export type ModeloAmeaca = Omit<Ameaca, "id" | "pvAtual" | "pmAtual" | "iniciativaAtual" | "condicoes" | "x" | "y"> & {
+  pvPadrao: number;
+  pmPadrao: number;
 };

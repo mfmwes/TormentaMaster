@@ -43,10 +43,11 @@ export type Magia = {
   aprimoramentos: Aprimoramento[]; 
 };
 
-// --- CORREÇÃO: ADICIONADO TIPO QUE FALTAVA ---
+// --- CORREÇÃO AQUI: ADICIONADO 'expressao' ---
 export type ResultadoRolagem = {
   total: number;
   detalhes: string;
+  expressao?: string; // Propriedade adicionada para evitar o erro de build
 };
 // ---------------------------------------------
 

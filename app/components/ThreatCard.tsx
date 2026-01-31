@@ -48,7 +48,7 @@ const AutoTextArea = ({ value, onChange, placeholder, className }: AutoTextAreaP
   );
 };
 
-// --- COMPONENTE ROW DE MAGIA ---
+// --- COMPONENTE ROW DE MAGIA (COM DROPDOWN) ---
 type SpellRowProps = {
     magia: Magia;
     onUpdate: (campo: keyof Magia, valor: any) => void;
@@ -58,6 +58,7 @@ type SpellRowProps = {
 
 const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
     const [counts, setCounts] = useState<Record<string, number>>({});
+    const [isExpanded, setIsExpanded] = useState(false); // Estado para controlar o dropdown
 
     const basePM = parseCost(magia.pm);
     const upgradeCost = (magia.aprimoramentos || []).reduce((acc: number, up: Aprimoramento) => {
@@ -90,24 +91,34 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
     const addUpgrade = () => {
         const novo: Aprimoramento = { id: crypto.randomUUID(), custo: "+1", descricao: "", roll: "" };
         onUpdate("aprimoramentos", [...(magia.aprimoramentos || []), novo]);
+        if (!isExpanded) setIsExpanded(true); // Abre o card se adicionar upgrade
     };
 
     return (
         <div className={`bg-gray-900 border ${upgradeCost > 0 ? 'border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.15)]' : 'border-purple-900/30'} rounded overflow-hidden transition-all duration-300`}>
             
-            {/* HEADER MAGIA */}
-            <div className="flex justify-between items-center bg-purple-900/10 px-2 py-1 border-b border-purple-900/20">
+            {/* HEADER MAGIA (CLICÁVEL PARA EXPANDIR) */}
+            <div 
+                className="flex justify-between items-center bg-purple-900/10 px-2 py-1 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors"
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
                 <div className="flex items-center gap-2 flex-grow">
+                    {/* Ícone da Seta */}
+                    <span className={`text-[10px] text-purple-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                    
                     <span className="text-sm">🔮</span>
-                    {/* AQUI: MUDANÇA PARA DAR DESTAQUE AO NOME */}
-                    <InputSync 
-                        className="font-black text-sm text-white bg-transparent focus:outline-none w-full placeholder-purple-900/50 capitalize tracking-wide drop-shadow-sm" 
-                        value={magia.nome} 
-                        onUpdate={v => onUpdate('nome', v)} 
-                        placeholder="Nome da Magia" 
-                    />
+                    
+                    <div onClick={(e) => e.stopPropagation()} className="flex-grow">
+                        <InputSync 
+                            className="font-black text-sm text-white bg-transparent focus:outline-none w-full placeholder-purple-900/50 capitalize tracking-wide drop-shadow-sm" 
+                            value={magia.nome} 
+                            onUpdate={v => onUpdate('nome', v)} 
+                            placeholder="Nome da Magia" 
+                        />
+                    </div>
                 </div>
-                <div className="flex items-center gap-1">
+                
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <div className={`flex items-center rounded px-1.5 py-0 border transition-colors ${upgradeCost > 0 ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-900 border-purple-900/30'}`}>
                         <span className={`text-[10px] mr-1 font-bold ${upgradeCost > 0 ? 'text-purple-200' : 'text-purple-500'}`}>PM</span>
                         {upgradeCost > 0 ? (
@@ -121,97 +132,103 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                 </div>
             </div>
 
-            {/* GRID DETALHES */}
-            <div className="grid grid-cols-3 gap-px bg-purple-900/20 border-b border-purple-900/20 text-xs">
-                {['execucao', 'alcance', 'area', 'alvo', 'duracao', 'resistencia'].map(campo => (
-                    <div key={campo} className="bg-gray-900/80 p-1 flex flex-col justify-center h-full min-h-[30px]">
-                        <span className="text-purple-500 font-bold uppercase tracking-wider mb-0.5 text-[10px] truncate block opacity-70" title={campo}>{campo.slice(0,6)}.</span>
+            {/* CONTEÚDO EXPANSÍVEL (Detalhes, Descrição e Upgrades) */}
+            {isExpanded && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                    
+                    {/* GRID DETALHES */}
+                    <div className="grid grid-cols-3 gap-px bg-purple-900/20 border-b border-purple-900/20 text-xs">
+                        {['execucao', 'alcance', 'area', 'alvo', 'duracao', 'resistencia'].map(campo => (
+                            <div key={campo} className="bg-gray-900/80 p-1 flex flex-col justify-center h-full min-h-[30px]">
+                                <span className="text-purple-500 font-bold uppercase tracking-wider mb-0.5 text-[10px] truncate block opacity-70" title={campo}>{campo.slice(0,6)}.</span>
+                                <AutoTextArea 
+                                    className="bg-transparent text-gray-200 w-full focus:outline-none focus:text-white text-xs leading-none py-0 capitalize" 
+                                    value={(magia as any)[campo]} 
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate(campo as keyof Magia, e.target.value)} 
+                                    placeholder="-" 
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* DESCRIÇÃO E DANO BASE */}
+                    <div className="p-1.5 border-b border-purple-900/20">
+                        <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[10px] text-purple-400 font-bold uppercase">Base:</span>
+                            <div className="relative h-5 bg-gray-950 border border-purple-900/40 rounded flex items-center w-20">
+                                <InputSync className="w-full h-full bg-transparent text-xs text-center font-bold px-3 focus:outline-none text-purple-200" value={magia.danoBase || ""} onUpdate={v => onUpdate('danoBase', v)} placeholder="Ex: 2d8" />
+                                {magia.danoBase && (
+                                    <button onClick={(e) => { e.stopPropagation(); onRoll(magia.danoBase!, `${magia.nome} (Base)`) }} className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-10" title="Rolar">🎲</button>
+                                )}
+                            </div>
+                        </div>
                         <AutoTextArea 
-                            className="bg-transparent text-gray-200 w-full focus:outline-none focus:text-white text-xs leading-none py-0 capitalize" 
-                            value={(magia as any)[campo]} 
-                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate(campo as keyof Magia, e.target.value)} 
-                            placeholder="-" 
+                            className="text-xs text-gray-200 bg-black/40 p-1.5 rounded border border-white/5 focus:border-purple-500/50 w-full leading-tight first-letter:uppercase" 
+                            value={magia.efeito}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate('efeito', e.target.value)}
+                            placeholder="Descrição..." 
                         />
                     </div>
-                ))}
-            </div>
 
-            {/* DESCRIÇÃO E DANO BASE */}
-            <div className="p-1.5 border-b border-purple-900/20">
-                <div className="flex items-center gap-1 mb-1">
-                    <span className="text-[10px] text-purple-400 font-bold uppercase">Base:</span>
-                    <div className="relative h-5 bg-gray-950 border border-purple-900/40 rounded flex items-center w-20">
-                        <InputSync className="w-full h-full bg-transparent text-xs text-center font-bold px-3 focus:outline-none text-purple-200" value={magia.danoBase || ""} onUpdate={v => onUpdate('danoBase', v)} placeholder="Ex: 2d8" />
-                        {magia.danoBase && (
-                            <button onClick={(e) => { e.stopPropagation(); onRoll(magia.danoBase!, `${magia.nome} (Base)`) }} className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-10" title="Rolar">🎲</button>
-                        )}
-                    </div>
-                </div>
-                <AutoTextArea 
-                    className="text-xs text-gray-200 bg-black/40 p-1.5 rounded border border-white/5 focus:border-purple-500/50 w-full leading-tight first-letter:uppercase" 
-                    value={magia.efeito}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate('efeito', e.target.value)}
-                    placeholder="Descrição..." 
-                />
-            </div>
+                    {/* APRIMORAMENTOS */}
+                    {(magia.aprimoramentos && magia.aprimoramentos.length > 0) && (
+                        <div className="bg-black/20 p-1.5 pt-1">
+                            <div className="flex flex-col gap-1">
+                                {magia.aprimoramentos.map((up: Aprimoramento) => {
+                                    const count = counts[up.id] || 0;
+                                    const active = count > 0;
 
-            {/* APRIMORAMENTOS */}
-            {(magia.aprimoramentos && magia.aprimoramentos.length > 0) && (
-                <div className="bg-black/20 p-1.5 pt-1">
-                    <div className="flex flex-col gap-1">
-                        {magia.aprimoramentos.map((up: Aprimoramento) => {
-                            const count = counts[up.id] || 0;
-                            const active = count > 0;
+                                    return (
+                                        <div key={up.id} className={`flex items-start gap-1.5 text-xs group/up relative pr-6 ${active ? 'bg-purple-900/10 rounded' : ''}`}>
+                                            
+                                            {/* CONTADOR / CUSTO */}
+                                            <div 
+                                                className={`rounded px-1 py-0.5 border font-bold whitespace-nowrap min-w-[2.2rem] flex justify-center h-fit mt-0.5 cursor-pointer select-none transition-all
+                                                    ${active ? 'bg-purple-600 border-purple-400 text-white shadow-md' : 'bg-purple-900/40 border-purple-700/50 text-purple-200 hover:bg-purple-800'}`}
+                                                onClick={() => toggleCount(up.id, 1)}
+                                                onContextMenu={(e) => { e.preventDefault(); toggleCount(up.id, -1); }}
+                                                title="Clique para somar. Botão direito para subtrair."
+                                            >
+                                                {active ? (
+                                                    <span className="text-xs">x{count}</span>
+                                                ) : (
+                                                    <InputSync 
+                                                        className="bg-transparent w-full text-center focus:outline-none text-xs pointer-events-none" 
+                                                        value={up.custo} 
+                                                        onUpdate={v => updateUpgrade(up.id, 'custo', v)} 
+                                                        placeholder="+1" 
+                                                    />
+                                                )}
+                                            </div>
 
-                            return (
-                                <div key={up.id} className={`flex items-start gap-1.5 text-xs group/up relative pr-6 ${active ? 'bg-purple-900/10 rounded' : ''}`}>
-                                    
-                                    {/* CONTADOR / CUSTO */}
-                                    <div 
-                                        className={`rounded px-1 py-0.5 border font-bold whitespace-nowrap min-w-[2.2rem] flex justify-center h-fit mt-0.5 cursor-pointer select-none transition-all
-                                            ${active ? 'bg-purple-600 border-purple-400 text-white shadow-md' : 'bg-purple-900/40 border-purple-700/50 text-purple-200 hover:bg-purple-800'}`}
-                                        onClick={() => toggleCount(up.id, 1)}
-                                        onContextMenu={(e) => { e.preventDefault(); toggleCount(up.id, -1); }}
-                                        title="Clique para somar. Botão direito para subtrair."
-                                    >
-                                        {active ? (
-                                            <span className="text-xs">x{count}</span>
-                                        ) : (
-                                            <InputSync 
-                                                className="bg-transparent w-full text-center focus:outline-none text-xs pointer-events-none" 
-                                                value={up.custo} 
-                                                onUpdate={v => updateUpgrade(up.id, 'custo', v)} 
-                                                placeholder="+1" 
+                                            {/* DESCRIÇÃO */}
+                                            <AutoTextArea 
+                                                className={`bg-transparent focus:text-white flex-grow border-b border-transparent focus:border-purple-800/50 transition-colors text-xs py-0.5 first-letter:uppercase leading-tight ${active ? 'text-white font-medium' : 'text-gray-300'}`}
+                                                value={up.descricao} 
+                                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateUpgrade(up.id, 'descricao', e.target.value)} 
+                                                placeholder="Upgrade..." 
                                             />
-                                        )}
-                                    </div>
 
-                                    {/* DESCRIÇÃO */}
-                                    <AutoTextArea 
-                                        className={`bg-transparent focus:text-white flex-grow border-b border-transparent focus:border-purple-800/50 transition-colors text-xs py-0.5 first-letter:uppercase leading-tight ${active ? 'text-white font-medium' : 'text-gray-300'}`}
-                                        value={up.descricao} 
-                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateUpgrade(up.id, 'descricao', e.target.value)} 
-                                        placeholder="Upgrade..." 
-                                    />
-
-                                    {/* REMOVER (LIXEIRA VISÍVEL) */}
-                                    <button 
-                                        onClick={() => removeUpgrade(up.id)} 
-                                        className="absolute right-0 top-0.5 text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center opacity-0 group-hover/up:opacity-100 transition hover:bg-red-900/20 rounded"
-                                    >
-                                        🗑️
-                                    </button>
-                                </div>
-                            );
-                        })}
+                                            {/* REMOVER (LIXEIRA VISÍVEL) */}
+                                            <button 
+                                                onClick={() => removeUpgrade(up.id)} 
+                                                className="absolute right-0 top-0.5 text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center opacity-0 group-hover/up:opacity-100 transition hover:bg-red-900/20 rounded"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* ADD BUTTON */}
+                    <div className="bg-black/20 px-2 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={addUpgrade} className="text-[10px] text-purple-500/50 hover:text-purple-300 w-full text-center hover:bg-purple-900/10 rounded transition">+ Upgrade</button>
                     </div>
                 </div>
             )}
-            
-            {/* ADD BUTTON */}
-            <div className="bg-black/20 px-2 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={addUpgrade} className="text-[10px] text-purple-500/50 hover:text-purple-300 w-full text-center hover:bg-purple-900/10 rounded transition">+ Upgrade</button>
-            </div>
         </div>
     );
 };
@@ -377,14 +394,14 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 </div>
                 <div className="flex gap-1 p-1 bg-gray-900/30">
                     <div className="flex-1 relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">ATQ</span>
+                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">ATQ</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.teste ? 'text-yellow-400' : 'text-gray-600'}`} value={acao.teste} onUpdate={v => updateAcao(acao.id, 'teste', v)} placeholder="+0" />
                         {acao.teste && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.teste, `${acao.nome} (Teste)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-yellow-600 text-yellow-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
                         )}
                     </div>
                     <div className="flex-[1.5] relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">DANO</span>
+                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">DANO</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.dano ? 'text-red-400' : 'text-gray-600'}`} value={acao.dano} onUpdate={v => updateAcao(acao.id, 'dano', v)} placeholder="-" />
                         {acao.dano && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.dano, `${acao.nome} (Dano)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-red-600 text-red-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
@@ -410,8 +427,8 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
           <div className="flex justify-between items-center mb-1 px-1 mt-3 border-t border-gray-800 pt-2">
             <label className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Grimório</label>
             <div className="flex gap-1">
-                <button onClick={() => setShowSpellSearch(true)} className="text-[10px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm flex items-center gap-1">🔍 Buscar</button>
-                <button onClick={addMagia} className="text-[10px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm">+ Manual</button>
+                <button onClick={() => setShowSpellSearch(true)} className="text-[9px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm flex items-center gap-1">🔍 Buscar</button>
+                <button onClick={addMagia} className="text-[9px] bg-purple-900/30 hover:bg-purple-800/50 text-purple-200 px-2 py-0.5 rounded border border-purple-800 transition shadow-sm">+ Manual</button>
             </div>
           </div>
           

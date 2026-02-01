@@ -79,42 +79,46 @@ const SpellRow = ({ magia, pmAtualAmeaca, onUpdate, onDelete, onRoll, onGastarMa
     const totalPM = basePM + upgradeCost;
     const temMana = pmAtualAmeaca >= totalPM;
 
-    // Atualiza Círculo e PM simultaneamente
     const handleCirculoChange = (novoCirculo: string) => {
         const novoPM = getBasePM(novoCirculo);
         onUpdate({ circulo: novoCirculo, pm: novoPM });
     };
 
-    // --- FUNÇÃO DE LANÇAR (GASTA MANA + ROLA DADOS) ---
-    const handleCast = (e: React.MouseEvent) => {
+    // --- FUNÇÃO DE LANÇAR (CAST) ---
+    const handleCast = (e: React.MouseEvent, forceFreeCast = false) => {
         e.stopPropagation();
         
-        if (!temMana) {
-            alert(`Mana insuficiente! Precisa de ${totalPM} PM, tem ${pmAtualAmeaca} PM.`);
-            return;
-        }
+        const isFreeRoll = forceFreeCast === true || e.shiftKey;
 
-        // 1. Gasta a Mana
-        onGastarMana(totalPM);
-
-        // 2. Rola Base (se houver)
+        // Rolagem de Dados (Síncrona, visual)
+        const suffix = isFreeRoll ? " (Grátis)" : "";
         if (magia.danoBase) {
-            onRoll(magia.danoBase, `${magia.nome} (Base)`);
+            onRoll(magia.danoBase, `${magia.nome} (Base)${suffix}`);
         }
-
-        // 3. Rola Upgrades Ativos (se houver)
         magia.aprimoramentos?.forEach(up => {
             const count = counts[up.id] || 0;
             if (count > 0 && up.roll) {
-                // Rola uma vez com rótulo indicando multiplicador se houver
                 const label = count > 1 
-                    ? `${magia.nome} [Upgrade x${count}]` 
-                    : `${magia.nome} [Upgrade]`;
+                    ? `${magia.nome} [Upgrade x${count}]${suffix}` 
+                    : `${magia.nome} [Upgrade]${suffix}`;
                 onRoll(up.roll, label);
             }
         });
+
+        // Gasto de Mana (Com pequeno delay para evitar conflito com onBlur do input)
+        if (!isFreeRoll) {
+            if (!temMana) {
+                alert(`Mana insuficiente! Precisa de ${totalPM} PM, tem ${pmAtualAmeaca} PM.`);
+                return;
+            }
+            if (totalPM > 0) {
+                // Pequeno timeout para garantir que o InputSync salvou o texto antes de atualizarmos a mana
+                setTimeout(() => {
+                    onGastarMana(totalPM);
+                }, 50);
+            }
+        }
     };
-    // ----------------------------------------------------
 
     const toggleCount = (id: string, delta: number) => {
         setCounts(prev => {
@@ -165,15 +169,16 @@ const SpellRow = ({ magia, pmAtualAmeaca, onUpdate, onDelete, onRoll, onGastarMa
                 </div>
                 
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    {/* BOTÃO DE LANÇAR MAGIA (Gasta PM + Rola Dados) */}
+                    {/* BOTÃO DE CUSTO (LANÇAR) */}
                     <button 
-                        onClick={handleCast}
+                        type="button"
+                        onClick={(e) => handleCast(e, false)}
                         className={`flex items-center rounded px-1.5 py-0 border transition-all active:scale-95 group/btn
                             ${upgradeCost > 0 
                                 ? (temMana ? 'bg-purple-600 border-purple-400 text-white hover:bg-purple-500 shadow-md' : 'bg-red-900/50 border-red-500 text-red-200 cursor-not-allowed') 
                                 : 'bg-gray-900 border-purple-900/30 hover:border-purple-500 text-purple-500 hover:text-purple-300'
                             }`}
-                        title={temMana ? `Lançar Magia (Gasta ${totalPM} PM e Rola Dados)` : "Mana Insuficiente"}
+                        title={temMana ? `Lançar Magia (-${totalPM} PM)` : "Mana Insuficiente"}
                     >
                         <span className="text-[10px] mr-1 font-bold opacity-80 group-hover/btn:hidden">PM</span>
                         <span className="text-[10px] mr-1 font-bold hidden group-hover/btn:inline text-white">⚡</span>
@@ -216,11 +221,22 @@ const SpellRow = ({ magia, pmAtualAmeaca, onUpdate, onDelete, onRoll, onGastarMa
                     <div className="p-1.5 border-b border-purple-900/20">
                         <div className="flex items-center gap-1 mb-1">
                             <span className="text-[10px] text-purple-400 font-bold uppercase">Base:</span>
-                            <div className="relative h-5 bg-gray-950 border border-purple-900/40 rounded flex items-center w-20">
-                                <InputSync className="w-full h-full bg-transparent text-xs text-center font-bold px-3 focus:outline-none text-purple-200" value={magia.danoBase || ""} onUpdate={v => onUpdate({ danoBase: v })} placeholder="Ex: 2d8" />
-                                {/* Botão de Dado Gratuito (Apenas rola, não gasta mana) */}
+                            <div className="relative h-5 bg-gray-950 border border-purple-900/40 rounded flex items-center w-20 group/dice">
+                                <InputSync 
+                                    className="w-full h-full bg-transparent text-xs text-center font-bold px-3 pr-5 focus:outline-none text-purple-200" 
+                                    value={magia.danoBase || ""} 
+                                    onUpdate={v => onUpdate({ danoBase: v })} 
+                                    placeholder="Ex: 2d8" 
+                                />
+                                
+                                {/* BOTÃO DE DADO (Agora usa onClick com o mesmo handler) */}
                                 {magia.danoBase && (
-                                    <button onClick={(e) => { e.stopPropagation(); onRoll(magia.danoBase!, `${magia.nome} (Grátis)`) }} className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-10" title="Rolar Apenas Dados (Sem gastar Mana)">🎲</button>
+                                    <button 
+                                        type="button"
+                                        onClick={(e) => handleCast(e, false)} 
+                                        className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-20 cursor-pointer" 
+                                        title="Lançar Magia. Segure SHIFT para rolar sem gastar PM."
+                                    >🎲</button>
                                 )}
                             </div>
                         </div>
@@ -242,50 +258,30 @@ const SpellRow = ({ magia, pmAtualAmeaca, onUpdate, onDelete, onRoll, onGastarMa
 
                                     return (
                                         <div key={up.id} className={`flex items-start gap-1.5 text-xs group/up relative pr-6 ${active ? 'bg-purple-900/10 rounded' : ''}`}>
-                                            
-                                            {/* CONTADOR / CUSTO */}
                                             <div 
                                                 className={`rounded px-1 py-0.5 border font-bold whitespace-nowrap min-w-[2.2rem] flex justify-center h-fit mt-0.5 cursor-pointer select-none transition-all
                                                     ${active ? 'bg-purple-600 border-purple-400 text-white shadow-md' : 'bg-purple-900/40 border-purple-700/50 text-purple-200 hover:bg-purple-800'}`}
                                                 onClick={() => toggleCount(up.id, 1)}
                                                 onContextMenu={(e) => { e.preventDefault(); toggleCount(up.id, -1); }}
-                                                title="Clique para somar ao custo. Botão direito para subtrair."
+                                                title="Clique para somar. Botão direito para subtrair."
                                             >
-                                                {active ? (
-                                                    <span className="text-xs">x{count}</span>
-                                                ) : (
-                                                    <InputSync 
-                                                        className="bg-transparent w-full text-center focus:outline-none text-xs pointer-events-none" 
-                                                        value={up.custo} 
-                                                        onUpdate={v => updateUpgrade(up.id, 'custo', v)} 
-                                                        placeholder="+1" 
-                                                    />
+                                                {active ? <span className="text-xs">x{count}</span> : (
+                                                    <InputSync className="bg-transparent w-full text-center focus:outline-none text-xs pointer-events-none" value={up.custo} onUpdate={v => updateUpgrade(up.id, 'custo', v)} placeholder="+1" />
                                                 )}
                                             </div>
-
-                                            {/* DESCRIÇÃO */}
                                             <AutoTextArea 
                                                 className={`bg-transparent focus:text-white flex-grow border-b border-transparent focus:border-purple-800/50 transition-colors text-xs py-0.5 first-letter:uppercase leading-tight ${active ? 'text-white font-medium' : 'text-gray-300'}`}
                                                 value={up.descricao} 
                                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateUpgrade(up.id, 'descricao', e.target.value)} 
                                                 placeholder="Upgrade..." 
                                             />
-
-                                            {/* REMOVER */}
-                                            <button 
-                                                onClick={() => removeUpgrade(up.id)} 
-                                                className="absolute right-0 top-0.5 text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center opacity-0 group-hover/up:opacity-100 transition hover:bg-red-900/20 rounded"
-                                            >
-                                                🗑️
-                                            </button>
+                                            <button onClick={() => removeUpgrade(up.id)} className="absolute right-0 top-0.5 text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center opacity-0 group-hover/up:opacity-100 transition hover:bg-red-900/20 rounded">🗑️</button>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
                     )}
-                    
-                    {/* ADD BUTTON */}
                     <div className="bg-black/20 px-2 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={addUpgrade} className="text-[10px] text-purple-500/50 hover:text-purple-300 w-full text-center hover:bg-purple-900/10 rounded transition">+ Upgrade</button>
                     </div>
@@ -355,7 +351,6 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
       onRoll(formula, ameaca.nome, rotulo);
   };
 
-  // Função para gastar mana na ficha da ameaça
   const gastarMana = (qtd: number) => {
       onUpdate(ameaca.id, "pmAtual", Math.max(0, ameaca.pmAtual - qtd));
   };

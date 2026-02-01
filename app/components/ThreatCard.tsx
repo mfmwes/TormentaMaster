@@ -16,6 +16,15 @@ const parseCost = (custoStr: string): number => {
   return match ? parseInt(match[0]) : 0;
 };
 
+const getBasePM = (circuloStr: string): string => {
+    const c = parseInt(circuloStr.replace(/\D/g, "") || "1");
+    if (c === 2) return "3";
+    if (c === 3) return "6";
+    if (c === 4) return "10";
+    if (c === 5) return "15";
+    return "1"; 
+};
+
 // --- TEXTAREA AUTO-AJUSTÁVEL ---
 type AutoTextAreaProps = {
     value: string;
@@ -48,17 +57,19 @@ const AutoTextArea = ({ value, onChange, placeholder, className }: AutoTextAreaP
   );
 };
 
-// --- COMPONENTE ROW DE MAGIA (COM DROPDOWN) ---
+// --- COMPONENTE ROW DE MAGIA ---
 type SpellRowProps = {
     magia: Magia;
-    onUpdate: (campo: keyof Magia, valor: any) => void;
+    pmAtualAmeaca: number;
+    onUpdate: (novosDados: Partial<Magia>) => void;
     onDelete: () => void;
     onRoll: (expr: string, rotulo: string) => void;
+    onGastarMana: (qtd: number) => void;
 };
 
-const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
+const SpellRow = ({ magia, pmAtualAmeaca, onUpdate, onDelete, onRoll, onGastarMana }: SpellRowProps) => {
     const [counts, setCounts] = useState<Record<string, number>>({});
-    const [isExpanded, setIsExpanded] = useState(false); // Estado para controlar o dropdown
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const basePM = parseCost(magia.pm);
     const upgradeCost = (magia.aprimoramentos || []).reduce((acc: number, up: Aprimoramento) => {
@@ -66,6 +77,44 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
         return acc + (parseCost(up.custo) * qtd);
     }, 0);
     const totalPM = basePM + upgradeCost;
+    const temMana = pmAtualAmeaca >= totalPM;
+
+    // Atualiza Círculo e PM simultaneamente
+    const handleCirculoChange = (novoCirculo: string) => {
+        const novoPM = getBasePM(novoCirculo);
+        onUpdate({ circulo: novoCirculo, pm: novoPM });
+    };
+
+    // --- FUNÇÃO DE LANÇAR (GASTA MANA + ROLA DADOS) ---
+    const handleCast = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        if (!temMana) {
+            alert(`Mana insuficiente! Precisa de ${totalPM} PM, tem ${pmAtualAmeaca} PM.`);
+            return;
+        }
+
+        // 1. Gasta a Mana
+        onGastarMana(totalPM);
+
+        // 2. Rola Base (se houver)
+        if (magia.danoBase) {
+            onRoll(magia.danoBase, `${magia.nome} (Base)`);
+        }
+
+        // 3. Rola Upgrades Ativos (se houver)
+        magia.aprimoramentos?.forEach(up => {
+            const count = counts[up.id] || 0;
+            if (count > 0 && up.roll) {
+                // Rola uma vez com rótulo indicando multiplicador se houver
+                const label = count > 1 
+                    ? `${magia.nome} [Upgrade x${count}]` 
+                    : `${magia.nome} [Upgrade]`;
+                onRoll(up.roll, label);
+            }
+        });
+    };
+    // ----------------------------------------------------
 
     const toggleCount = (id: string, delta: number) => {
         setCounts(prev => {
@@ -80,59 +129,71 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
 
     const updateUpgrade = (id: string, campo: keyof Aprimoramento, val: string) => {
         const novos = (magia.aprimoramentos || []).map((up: Aprimoramento) => up.id === id ? { ...up, [campo]: val } : up);
-        onUpdate("aprimoramentos", novos);
+        onUpdate({ aprimoramentos: novos });
     };
 
     const removeUpgrade = (id: string) => {
         const novos = (magia.aprimoramentos || []).filter((up: Aprimoramento) => up.id !== id);
-        onUpdate("aprimoramentos", novos);
+        onUpdate({ aprimoramentos: novos });
     };
 
     const addUpgrade = () => {
         const novo: Aprimoramento = { id: crypto.randomUUID(), custo: "+1", descricao: "", roll: "" };
-        onUpdate("aprimoramentos", [...(magia.aprimoramentos || []), novo]);
-        if (!isExpanded) setIsExpanded(true); // Abre o card se adicionar upgrade
+        onUpdate({ aprimoramentos: [...(magia.aprimoramentos || []), novo] });
+        if (!isExpanded) setIsExpanded(true);
     };
 
     return (
         <div className={`bg-gray-900 border ${upgradeCost > 0 ? 'border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.15)]' : 'border-purple-900/30'} rounded overflow-hidden transition-all duration-300`}>
             
-            {/* HEADER MAGIA (CLICÁVEL PARA EXPANDIR) */}
+            {/* HEADER MAGIA */}
             <div 
                 className="flex justify-between items-center bg-purple-900/10 px-2 py-1 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="flex items-center gap-2 flex-grow">
-                    {/* Ícone da Seta */}
                     <span className={`text-[10px] text-purple-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
-                    
                     <span className="text-sm">🔮</span>
-                    
                     <div onClick={(e) => e.stopPropagation()} className="flex-grow">
                         <InputSync 
                             className="font-black text-sm text-white bg-transparent focus:outline-none w-full placeholder-purple-900/50 capitalize tracking-wide drop-shadow-sm" 
                             value={magia.nome} 
-                            onUpdate={v => onUpdate('nome', v)} 
+                            onUpdate={v => onUpdate({ nome: v })} 
                             placeholder="Nome da Magia" 
                         />
                     </div>
                 </div>
                 
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <div className={`flex items-center rounded px-1.5 py-0 border transition-colors ${upgradeCost > 0 ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-900 border-purple-900/30'}`}>
-                        <span className={`text-[10px] mr-1 font-bold ${upgradeCost > 0 ? 'text-purple-200' : 'text-purple-500'}`}>PM</span>
-                        {upgradeCost > 0 ? (
-                            <span className="text-xs font-black min-w-[1rem] text-center animate-in zoom-in">{totalPM}</span>
-                        ) : (
-                            <InputSync className="text-xs font-bold text-white bg-transparent w-4 text-center focus:outline-none" value={magia.pm} onUpdate={v => onUpdate('pm', v)} />
-                        )}
-                    </div>
-                    <InputSync className="text-[10px] bg-gray-900 text-purple-400 border border-purple-900/30 rounded px-1 w-8 text-center focus:border-purple-500 focus:outline-none uppercase" value={magia.circulo} onUpdate={v => onUpdate('circulo', v)} placeholder="CÍRC" />
+                    {/* BOTÃO DE LANÇAR MAGIA (Gasta PM + Rola Dados) */}
+                    <button 
+                        onClick={handleCast}
+                        className={`flex items-center rounded px-1.5 py-0 border transition-all active:scale-95 group/btn
+                            ${upgradeCost > 0 
+                                ? (temMana ? 'bg-purple-600 border-purple-400 text-white hover:bg-purple-500 shadow-md' : 'bg-red-900/50 border-red-500 text-red-200 cursor-not-allowed') 
+                                : 'bg-gray-900 border-purple-900/30 hover:border-purple-500 text-purple-500 hover:text-purple-300'
+                            }`}
+                        title={temMana ? `Lançar Magia (Gasta ${totalPM} PM e Rola Dados)` : "Mana Insuficiente"}
+                    >
+                        <span className="text-[10px] mr-1 font-bold opacity-80 group-hover/btn:hidden">PM</span>
+                        <span className="text-[10px] mr-1 font-bold hidden group-hover/btn:inline text-white">⚡</span>
+                        
+                        <span className="text-xs font-black min-w-[1rem] text-center">
+                            {totalPM}
+                        </span>
+                    </button>
+
+                    <InputSync 
+                        className="text-[10px] bg-gray-900 text-purple-400 border border-purple-900/30 rounded px-1 w-8 text-center focus:border-purple-500 focus:outline-none uppercase" 
+                        value={magia.circulo} 
+                        onUpdate={handleCirculoChange} 
+                        placeholder="CÍRC" 
+                    />
                     <button onClick={onDelete} className="text-purple-800 hover:text-red-500 w-5 h-5 flex items-center justify-center text-xs transition">✕</button>
                 </div>
             </div>
 
-            {/* CONTEÚDO EXPANSÍVEL (Detalhes, Descrição e Upgrades) */}
+            {/* CONTEÚDO EXPANSÍVEL */}
             {isExpanded && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                     
@@ -144,7 +205,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                                 <AutoTextArea 
                                     className="bg-transparent text-gray-200 w-full focus:outline-none focus:text-white text-xs leading-none py-0 capitalize" 
                                     value={(magia as any)[campo]} 
-                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate(campo as keyof Magia, e.target.value)} 
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate({ [campo]: e.target.value })} 
                                     placeholder="-" 
                                 />
                             </div>
@@ -156,16 +217,17 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                         <div className="flex items-center gap-1 mb-1">
                             <span className="text-[10px] text-purple-400 font-bold uppercase">Base:</span>
                             <div className="relative h-5 bg-gray-950 border border-purple-900/40 rounded flex items-center w-20">
-                                <InputSync className="w-full h-full bg-transparent text-xs text-center font-bold px-3 focus:outline-none text-purple-200" value={magia.danoBase || ""} onUpdate={v => onUpdate('danoBase', v)} placeholder="Ex: 2d8" />
+                                <InputSync className="w-full h-full bg-transparent text-xs text-center font-bold px-3 focus:outline-none text-purple-200" value={magia.danoBase || ""} onUpdate={v => onUpdate({ danoBase: v })} placeholder="Ex: 2d8" />
+                                {/* Botão de Dado Gratuito (Apenas rola, não gasta mana) */}
                                 {magia.danoBase && (
-                                    <button onClick={(e) => { e.stopPropagation(); onRoll(magia.danoBase!, `${magia.nome} (Base)`) }} className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-10" title="Rolar">🎲</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onRoll(magia.danoBase!, `${magia.nome} (Grátis)`) }} className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-gray-900 hover:bg-purple-600 text-purple-500 hover:text-white transition border-l border-purple-900/40 z-10" title="Rolar Apenas Dados (Sem gastar Mana)">🎲</button>
                                 )}
                             </div>
                         </div>
                         <AutoTextArea 
                             className="text-xs text-gray-200 bg-black/40 p-1.5 rounded border border-white/5 focus:border-purple-500/50 w-full leading-tight first-letter:uppercase" 
                             value={magia.efeito}
-                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate('efeito', e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onUpdate({ efeito: e.target.value })}
                             placeholder="Descrição..." 
                         />
                     </div>
@@ -187,7 +249,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                                                     ${active ? 'bg-purple-600 border-purple-400 text-white shadow-md' : 'bg-purple-900/40 border-purple-700/50 text-purple-200 hover:bg-purple-800'}`}
                                                 onClick={() => toggleCount(up.id, 1)}
                                                 onContextMenu={(e) => { e.preventDefault(); toggleCount(up.id, -1); }}
-                                                title="Clique para somar. Botão direito para subtrair."
+                                                title="Clique para somar ao custo. Botão direito para subtrair."
                                             >
                                                 {active ? (
                                                     <span className="text-xs">x{count}</span>
@@ -209,7 +271,7 @@ const SpellRow = ({ magia, onUpdate, onDelete, onRoll }: SpellRowProps) => {
                                                 placeholder="Upgrade..." 
                                             />
 
-                                            {/* REMOVER (LIXEIRA VISÍVEL) */}
+                                            {/* REMOVER */}
                                             <button 
                                                 onClick={() => removeUpgrade(up.id)} 
                                                 className="absolute right-0 top-0.5 text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center opacity-0 group-hover/up:opacity-100 transition hover:bg-red-900/20 rounded"
@@ -278,7 +340,9 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
   };
 
   const handleImportSpell = (novaMagia: Magia) => {
-      onUpdate(ameaca.id, "magias", [...(ameaca.magias || []), novaMagia]);
+      const pmCorrigido = getBasePM(novaMagia.circulo);
+      const magiaPronta = { ...novaMagia, pm: pmCorrigido };
+      onUpdate(ameaca.id, "magias", [...(ameaca.magias || []), magiaPronta]);
   };
 
   const rolarComContexto = (e: React.MouseEvent, expr: string, rotulo: string) => {
@@ -289,6 +353,11 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
           else if (/^\d+$/.test(formula)) formula = `1d20+${formula}`;
       }
       onRoll(formula, ameaca.nome, rotulo);
+  };
+
+  // Função para gastar mana na ficha da ameaça
+  const gastarMana = (qtd: number) => {
+      onUpdate(ameaca.id, "pmAtual", Math.max(0, ameaca.pmAtual - qtd));
   };
 
   return (
@@ -394,14 +463,14 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
                 </div>
                 <div className="flex gap-1 p-1 bg-gray-900/30">
                     <div className="flex-1 relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">ATQ</span>
+                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">ATQ</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.teste ? 'text-yellow-400' : 'text-gray-600'}`} value={acao.teste} onUpdate={v => updateAcao(acao.id, 'teste', v)} placeholder="+0" />
                         {acao.teste && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.teste, `${acao.nome} (Teste)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-yellow-600 text-yellow-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
                         )}
                     </div>
                     <div className="flex-[1.5] relative h-6 bg-gray-950 border border-gray-800 rounded flex items-center">
-                        <span className="absolute left-1 text-[8px] text-gray-500 font-bold pointer-events-none">DANO</span>
+                        <span className="absolute left-1 text-[10px] text-gray-500 font-bold pointer-events-none">DANO</span>
                         <InputSync className={`w-full h-full bg-transparent text-[10px] text-center font-bold px-4 focus:outline-none ${acao.dano ? 'text-red-400' : 'text-gray-600'}`} value={acao.dano} onUpdate={v => updateAcao(acao.id, 'dano', v)} placeholder="-" />
                         {acao.dano && (
                             <button type="button" onClick={(e) => rolarComContexto(e, acao.dano, `${acao.nome} (Dano)`)} className="absolute right-0 top-0 h-full w-5 flex items-center justify-center bg-gray-900 hover:bg-red-600 text-red-500 hover:text-white transition border-l border-gray-800 z-10" title="Rolar">🎲</button>
@@ -437,12 +506,11 @@ export const ThreatCard = ({ ameaca, onUpdate, onDelete, onClone, onSaveModel, o
               <SpellRow 
                 key={magia.id}
                 magia={magia} 
-                onUpdate={(k, v) => {
-                    if (k === 'aprimoramentos') updateMagiaFull(magia.id, { aprimoramentos: v });
-                    else updateMagiaFull(magia.id, { [k]: v });
-                }} 
+                pmAtualAmeaca={ameaca.pmAtual}
+                onUpdate={(vals) => updateMagiaFull(magia.id, vals)} 
                 onDelete={() => removeMagia(magia.id)}
                 onRoll={(expr, rotulo) => onRoll(expr, ameaca.nome, rotulo)}
+                onGastarMana={gastarMana}
               />
             ))}
             {(ameaca.magias || []).length === 0 && <div className="text-xs text-purple-900/50 text-center py-3 border border-dashed border-purple-900/20 rounded hover:border-purple-700/50 hover:text-purple-400 cursor-pointer transition" onClick={() => setShowSpellSearch(true)}>🔮 Abrir Grimório</div>}
